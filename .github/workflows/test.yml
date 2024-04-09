@@ -1,0 +1,24 @@
+name: Test Action
+
+on:
+  workflow_dispatch:
+
+
+
+#permissions:
+#  contents: write
+
+jobs:
+  build:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Send Info
+        id: apw-send-info
+        uses: ./
+        with:
+          apiToken: ${{ secrets.JRE_GOLIVE_TOKEN }}

@@ -1,0 +1,43 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+
+  #push:
+  #  branches:
+  #    - master
+
+
+#permissions:
+#  contents: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        id: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install
+        id: npm-install
+        run: npm install
+
+      - name: Package
+        id: npm-package
+        run: npm run package-github
+
+      - name: Upload
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
