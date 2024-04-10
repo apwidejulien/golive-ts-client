@@ -8,8 +8,8 @@ on:
       - master
 
 
-permissions:
-  contents: read
+#permissions:
+#  contents: write
 
 jobs:
   build:
@@ -35,9 +35,9 @@ jobs:
         id: npm-package
         run: npm run package-github
 
-      - name: Upload
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
+      #- name: Upload
+      #  id: upload
+      #  uses: actions/upload-artifact@v4
+      #  with:
+      #    name: dist
+      #    path: dist/
