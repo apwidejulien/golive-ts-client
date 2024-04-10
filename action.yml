@@ -1,0 +1,16 @@
+name: 'Golive Send Environment Info'
+description: 'Send Environment Information to Golive'
+inputs:
+  apiToken:
+    description: 'Golive API Token'
+    required: true
+  baseUrl:
+    description: 'Api Base Url'
+    required: false
+    default: 'https://golive.loca.jre.apwide.net/api'
+outputs:
+  status:
+    description: 'Status of the action'
+runs:
+  using: 'node20'
+  main: 'index.js'
