@@ -13,4 +13,4 @@ outputs:
     description: 'Status of the action'
 runs:
   using: 'node20'
-  main: 'index.js'
+  main: 'dist/index.js'
