@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
 
-
 #permissions:
-#  contents: write
+#  actions: read
+permissions: read-all
 
 jobs:
   build:

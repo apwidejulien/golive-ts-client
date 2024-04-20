@@ -14,6 +14,7 @@ async function run() {
         const apiToken = core.getInput('apiToken')
         const baseUrl = core.getInput('baseUrl')
         const githubToken = core.getInput('githubToken')
+        // https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
         // https://github.com/actions/toolkit
         // https://github.com/octokit/plugin-throttling.js/issues/127
         // https://gist.github.com/slavafomin/cd7a54035eff5dc1c7c2eff096b23b6b
