@@ -28,21 +28,7 @@ async function run() {
         const token = core.getInput('GITHUB_TOKEN')
         const context = github.context
 
-        // const MyOctokit = Octokit.plugin<Octokit & Constructor<Api>>(restEndpointMethods);
-        // const m = new MyOctokit({})
-        // const octokit = github.getOctokit<Octokit & Api>(githubToken, undefined, restEndpointMethods)
-        const octokit = github.getOctokit(githubToken) as any
-        // const api: Api = github.getOctokit<Api>(githubToken, undefined, plugin.restEndpointMethods)
-        const response = octokit.rest.actions.listWorkflowRuns({
-            ...context.repo,
-            workflow_id: context.workflow
-        })
-        log(`runs count: ${response.data.workflow_runs.length}`)
-        /*
-        const response: GetWorkflowRunsResponse = await octokit.request('GET /repos/{owner}/{repo}/actions/runs', {
-            ...context
-        })
-        */
+
         log(`
             token: ${token}
             githubToken: ${githubToken}
@@ -50,6 +36,27 @@ async function run() {
             repo: ${github.context.repo.repo}
             runId: ${github.context.runId}
         `)
+
+
+        // const MyOctokit = Octokit.plugin<Octokit & Constructor<Api>>(restEndpointMethods);
+        // const m = new MyOctokit({})
+        // const octokit = github.getOctokit<Octokit & Api>(githubToken, undefined, restEndpointMethods)
+        const octokit = github.getOctokit(githubToken) as any
+        // const api: Api = github.getOctokit<Api>(githubToken, undefined, plugin.restEndpointMethods)
+        const workflows = await octokit.rest.actions.listRepoWorkflows({
+            ...context.repo
+        })
+        const workflow = workflows.data.workflows.find(workflow => workflow.name === context.workflow)!
+        const response = octokit.rest.actions.listWorkflowRuns({
+            ...context.repo,
+            workflow_id: workflow!.id
+        })
+        log(`runs count: ${response.data.workflow_runs.length}`)
+        /*
+        const response: GetWorkflowRunsResponse = await octokit.request('GET /repos/{owner}/{repo}/actions/runs', {
+            ...context
+        })
+        */
         OpenAPI.BASE = baseUrl
         OpenAPI.TOKEN = apiToken
         // github.context.
