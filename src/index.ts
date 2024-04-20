@@ -2,9 +2,6 @@ import * as core from '@actions/core'
 import * as github from '@actions/github'
 // https://www.typescriptlang.org/docs/handbook/modules/appendices/esm-cjs-interop.html
 import {ApplicationService, OpenAPI} from "./client"
-//const {restEndpointMethods} = await import('@octokit/plugin-rest-endpoint-methods')
-// import {restEndpointMethods} from '@octokit/plugin-rest-endpoint-methods'
-const plugin = require('@octokit/plugin-rest-endpoint-methods')
 
 function log(message: string) {
     core.info(message)
@@ -12,12 +9,13 @@ function log(message: string) {
 
 async function run() {
     try {
-
         // const GoliveOctokit = Octokit.plugin(restEndpointMethods)
         // const octokit = new GoliveOctokit()
         const apiToken = core.getInput('apiToken')
         const baseUrl = core.getInput('baseUrl')
         const githubToken = core.getInput('githubToken')
+        // https://github.com/actions/toolkit
+        // https://github.com/octokit/plugin-throttling.js/issues/127
         // https://gist.github.com/slavafomin/cd7a54035eff5dc1c7c2eff096b23b6b
         // https://github.com/actions/toolkit/issues/1555
         // https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
@@ -32,9 +30,9 @@ async function run() {
         // const MyOctokit = Octokit.plugin<Octokit & Constructor<Api>>(restEndpointMethods);
         // const m = new MyOctokit({})
         // const octokit = github.getOctokit<Octokit & Api>(githubToken, undefined, restEndpointMethods)
-        const api = plugin.restEndpointMethods(github.getOctokit(githubToken))
+        const octokit = github.getOctokit(githubToken) as any
         // const api: Api = github.getOctokit<Api>(githubToken, undefined, plugin.restEndpointMethods)
-        const response = await api.rest.actions.listWorkflowRunsForRepo({
+        const response = await octokit.rest.actions.listWorkflowRunsForRepo({
             ...context.repo
         })
         log(`runs count: ${response.data.workflow_runs.length}`)
