@@ -3,9 +3,9 @@ name: Build and Release
 on:
   workflow_dispatch:
 
-  #push:
-  #  branches:
-  #    - master
+  push:
+    branches:
+      - master
 
 
 #permissions:
