@@ -31879,6 +31879,8 @@ async function run() {
             ...context.repo
         });
         const workflow = workflows.data.workflows.find(workflow => workflow.name === context.workflow);
+        log(`workflows: ${JSON.stringify(workflows.data.workflows)}`);
+        log(`found workflow: ${JSON.stringify(workflow)}`);
         const response = octokit.rest.actions.listWorkflowRuns({
             ...context.repo,
             workflow_id: workflow.id
