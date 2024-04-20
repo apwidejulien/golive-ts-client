@@ -22,3 +22,4 @@ jobs:
         uses: ./
         with:
           apiToken: ${{ secrets.JRE_GOLIVE_TOKEN }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}

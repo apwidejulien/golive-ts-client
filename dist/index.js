@@ -31806,6 +31806,7 @@ function run() {
         try {
             const apiToken = core.getInput('apiToken');
             const baseUrl = core.getInput('baseUrl');
+            const githubToken = core.getInput('githubToken');
             // https://docs.github.com/en/actions/security-guides/automatic-token-authentication
             // https://github.com/octokit/auth-action.js/?tab=readme-ov-file
             //core.getInput("github")
@@ -31813,6 +31814,7 @@ function run() {
             // const gc = github.getOctokit(token)
             log(`
             token: ${token}
+            githubToken: ${githubToken}
             workflow: ${github.context.workflow}
             repo: ${github.context.repo.repo}
             runId: ${github.context.runId}
