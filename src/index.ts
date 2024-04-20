@@ -10,6 +10,14 @@ async function run() {
     try {
         const apiToken = core.getInput('apiToken')
         const baseUrl = core.getInput('baseUrl')
+
+        //core.getInput("github")
+        // github.getOctokit()
+        log(`
+            workflow: ${github.context.workflow}
+            repo: ${github.context.repo.repo}
+            runId: ${github.context.runId}
+        `)
         OpenAPI.BASE = baseUrl
         OpenAPI.TOKEN = apiToken
         // github.context.
