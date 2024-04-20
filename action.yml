@@ -7,7 +7,7 @@ inputs:
   baseUrl:
     description: 'Api Base Url'
     required: false
-    default: 'https://golive.local.jre.apwide.net/api'
+    default: 'https://golive.apwide.net/api'
 outputs:
   status:
     description: 'Status of the action'
