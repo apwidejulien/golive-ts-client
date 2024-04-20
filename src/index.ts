@@ -33,8 +33,9 @@ async function run() {
         // const octokit = github.getOctokit<Octokit & Api>(githubToken, undefined, restEndpointMethods)
         const octokit = github.getOctokit(githubToken) as any
         // const api: Api = github.getOctokit<Api>(githubToken, undefined, plugin.restEndpointMethods)
-        const response = await octokit.rest.actions.listWorkflowRunsForRepo({
-            ...context.repo
+        const response = octokit.rest.actions.listWorkflowRuns({
+            ...context.repo,
+            workflow_id: context.workflow
         })
         log(`runs count: ${response.data.workflow_runs.length}`)
         /*
