@@ -31885,7 +31885,7 @@ async function run() {
             ...context.repo,
             workflow_id: workflow.id
         });
-        log(`runs count: ${response.data.workflow_runs.length}`);
+        // log(`runs count: ${response.data}`)
         /*
         const response: GetWorkflowRunsResponse = await octokit.request('GET /repos/{owner}/{repo}/actions/runs', {
             ...context
