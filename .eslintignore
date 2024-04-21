@@ -5,3 +5,6 @@ package.json
 *.lock
 *.css
 tests/linkTesters/*
+dist/
+.eslintrc.js
+**/*.spec.ts

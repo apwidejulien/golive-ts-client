@@ -7,7 +7,7 @@
     "test": "vitest",
     "openapi-ts": "openapi-ts",
     "package-github": "npx ncc build src/index.ts -o dist --source-map",
-    "lint": "npx eslint",
+    "lint": "npx eslint .",
     "format:check": "prettier --check .",
     "format:write": "prettier --write ."
   },

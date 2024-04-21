@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, test } from 'vitest'
 import { OpenAPI } from '../client'
-import * as main from '../index'
+import {run} from "../main";
 
 test('should run action', async () => {
   OpenAPI.BASE = 'https://golive.apwide.net/api'
@@ -13,6 +13,6 @@ describe('github action', async () => {
   beforeEach(() => {})
 
   it('should call github', async () => {
-    await main.run()
+    await run()
   })
 })
