@@ -29188,6 +29188,2946 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 2439:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ApiError = void 0;
+class ApiError extends Error {
+    url;
+    status;
+    statusText;
+    body;
+    request;
+    constructor(request, response, message) {
+        super(message);
+        this.name = 'ApiError';
+        this.url = response.url;
+        this.status = response.status;
+        this.statusText = response.statusText;
+        this.body = response.body;
+        this.request = request;
+    }
+}
+exports.ApiError = ApiError;
+
+
+/***/ }),
+
+/***/ 5542:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CancelablePromise = exports.CancelError = void 0;
+class CancelError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'CancelError';
+    }
+    get isCancelled() {
+        return true;
+    }
+}
+exports.CancelError = CancelError;
+class CancelablePromise {
+    _isResolved;
+    _isRejected;
+    _isCancelled;
+    cancelHandlers;
+    promise;
+    _resolve;
+    _reject;
+    constructor(executor) {
+        this._isResolved = false;
+        this._isRejected = false;
+        this._isCancelled = false;
+        this.cancelHandlers = [];
+        this.promise = new Promise((resolve, reject) => {
+            this._resolve = resolve;
+            this._reject = reject;
+            const onResolve = (value) => {
+                if (this._isResolved || this._isRejected || this._isCancelled) {
+                    return;
+                }
+                this._isResolved = true;
+                if (this._resolve)
+                    this._resolve(value);
+            };
+            const onReject = (reason) => {
+                if (this._isResolved || this._isRejected || this._isCancelled) {
+                    return;
+                }
+                this._isRejected = true;
+                if (this._reject)
+                    this._reject(reason);
+            };
+            const onCancel = (cancelHandler) => {
+                if (this._isResolved || this._isRejected || this._isCancelled) {
+                    return;
+                }
+                this.cancelHandlers.push(cancelHandler);
+            };
+            Object.defineProperty(onCancel, 'isResolved', {
+                get: () => this._isResolved,
+            });
+            Object.defineProperty(onCancel, 'isRejected', {
+                get: () => this._isRejected,
+            });
+            Object.defineProperty(onCancel, 'isCancelled', {
+                get: () => this._isCancelled,
+            });
+            return executor(onResolve, onReject, onCancel);
+        });
+    }
+    get [Symbol.toStringTag]() {
+        return "Cancellable Promise";
+    }
+    then(onFulfilled, onRejected) {
+        return this.promise.then(onFulfilled, onRejected);
+    }
+    catch(onRejected) {
+        return this.promise.catch(onRejected);
+    }
+    finally(onFinally) {
+        return this.promise.finally(onFinally);
+    }
+    cancel() {
+        if (this._isResolved || this._isRejected || this._isCancelled) {
+            return;
+        }
+        this._isCancelled = true;
+        if (this.cancelHandlers.length) {
+            try {
+                for (const cancelHandler of this.cancelHandlers) {
+                    cancelHandler();
+                }
+            }
+            catch (error) {
+                console.warn('Cancellation threw an error', error);
+                return;
+            }
+        }
+        this.cancelHandlers.length = 0;
+        if (this._reject)
+            this._reject(new CancelError('Request aborted'));
+    }
+    get isCancelled() {
+        return this._isCancelled;
+    }
+}
+exports.CancelablePromise = CancelablePromise;
+
+
+/***/ }),
+
+/***/ 3421:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.OpenAPI = exports.Interceptors = void 0;
+class Interceptors {
+    _fns;
+    constructor() {
+        this._fns = [];
+    }
+    eject(fn) {
+        const index = this._fns.indexOf(fn);
+        if (index !== -1) {
+            this._fns = [...this._fns.slice(0, index), ...this._fns.slice(index + 1)];
+        }
+    }
+    use(fn) {
+        this._fns = [...this._fns, fn];
+    }
+}
+exports.Interceptors = Interceptors;
+exports.OpenAPI = {
+    BASE: 'https://jira.dev.apwide.com/rest/apwide/tem/1.1',
+    CREDENTIALS: 'include',
+    ENCODE_PATH: undefined,
+    HEADERS: undefined,
+    PASSWORD: undefined,
+    TOKEN: undefined,
+    USERNAME: undefined,
+    VERSION: '1.1',
+    WITH_CREDENTIALS: false,
+    interceptors: {
+        request: new Interceptors(),
+        response: new Interceptors(),
+    },
+};
+
+
+/***/ }),
+
+/***/ 6951:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.request = exports.catchErrorCodes = exports.getResponseBody = exports.getResponseHeader = exports.sendRequest = exports.getRequestBody = exports.getHeaders = exports.resolve = exports.getFormData = exports.getQueryString = exports.base64 = exports.isFormData = exports.isBlob = exports.isStringWithValue = exports.isString = void 0;
+const ApiError_1 = __nccwpck_require__(2439);
+const CancelablePromise_1 = __nccwpck_require__(5542);
+const isString = (value) => {
+    return typeof value === 'string';
+};
+exports.isString = isString;
+const isStringWithValue = (value) => {
+    return (0, exports.isString)(value) && value !== '';
+};
+exports.isStringWithValue = isStringWithValue;
+const isBlob = (value) => {
+    return value instanceof Blob;
+};
+exports.isBlob = isBlob;
+const isFormData = (value) => {
+    return value instanceof FormData;
+};
+exports.isFormData = isFormData;
+const base64 = (str) => {
+    try {
+        return btoa(str);
+    }
+    catch (err) {
+        // @ts-ignore
+        return Buffer.from(str).toString('base64');
+    }
+};
+exports.base64 = base64;
+const getQueryString = (params) => {
+    const qs = [];
+    const append = (key, value) => {
+        qs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+    };
+    const encodePair = (key, value) => {
+        if (value === undefined || value === null) {
+            return;
+        }
+        if (value instanceof Date) {
+            append(key, value.toISOString());
+        }
+        else if (Array.isArray(value)) {
+            value.forEach(v => encodePair(key, v));
+        }
+        else if (typeof value === 'object') {
+            Object.entries(value).forEach(([k, v]) => encodePair(`${key}[${k}]`, v));
+        }
+        else {
+            append(key, value);
+        }
+    };
+    Object.entries(params).forEach(([key, value]) => encodePair(key, value));
+    return qs.length ? `?${qs.join('&')}` : '';
+};
+exports.getQueryString = getQueryString;
+const getUrl = (config, options) => {
+    const encoder = config.ENCODE_PATH || encodeURI;
+    const path = options.url
+        .replace('{api-version}', config.VERSION)
+        .replace(/{(.*?)}/g, (substring, group) => {
+        if (options.path?.hasOwnProperty(group)) {
+            return encoder(String(options.path[group]));
+        }
+        return substring;
+    });
+    const url = config.BASE + path;
+    return options.query ? url + (0, exports.getQueryString)(options.query) : url;
+};
+const getFormData = (options) => {
+    if (options.formData) {
+        const formData = new FormData();
+        const process = (key, value) => {
+            if ((0, exports.isString)(value) || (0, exports.isBlob)(value)) {
+                formData.append(key, value);
+            }
+            else {
+                formData.append(key, JSON.stringify(value));
+            }
+        };
+        Object.entries(options.formData)
+            .filter(([, value]) => value !== undefined && value !== null)
+            .forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => process(key, v));
+            }
+            else {
+                process(key, value);
+            }
+        });
+        return formData;
+    }
+    return undefined;
+};
+exports.getFormData = getFormData;
+const resolve = async (options, resolver) => {
+    if (typeof resolver === 'function') {
+        return resolver(options);
+    }
+    return resolver;
+};
+exports.resolve = resolve;
+const getHeaders = async (config, options) => {
+    const [token, username, password, additionalHeaders] = await Promise.all([
+        // @ts-ignore
+        (0, exports.resolve)(options, config.TOKEN),
+        // @ts-ignore
+        (0, exports.resolve)(options, config.USERNAME),
+        // @ts-ignore
+        (0, exports.resolve)(options, config.PASSWORD),
+        // @ts-ignore
+        (0, exports.resolve)(options, config.HEADERS),
+    ]);
+    const headers = Object.entries({
+        Accept: 'application/json',
+        ...additionalHeaders,
+        ...options.headers,
+    })
+        .filter(([, value]) => value !== undefined && value !== null)
+        .reduce((headers, [key, value]) => ({
+        ...headers,
+        [key]: String(value),
+    }), {});
+    if ((0, exports.isStringWithValue)(token)) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    if ((0, exports.isStringWithValue)(username) && (0, exports.isStringWithValue)(password)) {
+        const credentials = (0, exports.base64)(`${username}:${password}`);
+        headers['Authorization'] = `Basic ${credentials}`;
+    }
+    if (options.body !== undefined) {
+        if (options.mediaType) {
+            headers['Content-Type'] = options.mediaType;
+        }
+        else if ((0, exports.isBlob)(options.body)) {
+            headers['Content-Type'] = options.body.type || 'application/octet-stream';
+        }
+        else if ((0, exports.isString)(options.body)) {
+            headers['Content-Type'] = 'text/plain';
+        }
+        else if (!(0, exports.isFormData)(options.body)) {
+            headers['Content-Type'] = 'application/json';
+        }
+    }
+    return new Headers(headers);
+};
+exports.getHeaders = getHeaders;
+const getRequestBody = (options) => {
+    if (options.body !== undefined) {
+        if (options.mediaType?.includes('application/json') || options.mediaType?.includes('+json')) {
+            return JSON.stringify(options.body);
+        }
+        else if ((0, exports.isString)(options.body) || (0, exports.isBlob)(options.body) || (0, exports.isFormData)(options.body)) {
+            return options.body;
+        }
+        else {
+            return JSON.stringify(options.body);
+        }
+    }
+    return undefined;
+};
+exports.getRequestBody = getRequestBody;
+const sendRequest = async (config, options, url, body, formData, headers, onCancel) => {
+    const controller = new AbortController();
+    let request = {
+        headers,
+        body: body ?? formData,
+        method: options.method,
+        signal: controller.signal,
+    };
+    if (config.WITH_CREDENTIALS) {
+        request.credentials = config.CREDENTIALS;
+    }
+    for (const fn of config.interceptors.request._fns) {
+        request = await fn(request);
+    }
+    onCancel(() => controller.abort());
+    return await fetch(url, request);
+};
+exports.sendRequest = sendRequest;
+const getResponseHeader = (response, responseHeader) => {
+    if (responseHeader) {
+        const content = response.headers.get(responseHeader);
+        if ((0, exports.isString)(content)) {
+            return content;
+        }
+    }
+    return undefined;
+};
+exports.getResponseHeader = getResponseHeader;
+const getResponseBody = async (response) => {
+    if (response.status !== 204) {
+        try {
+            const contentType = response.headers.get('Content-Type');
+            if (contentType) {
+                const binaryTypes = ['application/octet-stream', 'application/pdf', 'application/zip', 'audio/', 'image/', 'video/'];
+                if (contentType.includes('application/json') || contentType.includes('+json')) {
+                    return await response.json();
+                }
+                else if (binaryTypes.some(type => contentType.includes(type))) {
+                    return await response.blob();
+                }
+                else if (contentType.includes('multipart/form-data')) {
+                    return await response.formData();
+                }
+                else if (contentType.includes('text/')) {
+                    return await response.text();
+                }
+            }
+        }
+        catch (error) {
+            console.error(error);
+        }
+    }
+    return undefined;
+};
+exports.getResponseBody = getResponseBody;
+const catchErrorCodes = (options, result) => {
+    const errors = {
+        400: 'Bad Request',
+        401: 'Unauthorized',
+        402: 'Payment Required',
+        403: 'Forbidden',
+        404: 'Not Found',
+        405: 'Method Not Allowed',
+        406: 'Not Acceptable',
+        407: 'Proxy Authentication Required',
+        408: 'Request Timeout',
+        409: 'Conflict',
+        410: 'Gone',
+        411: 'Length Required',
+        412: 'Precondition Failed',
+        413: 'Payload Too Large',
+        414: 'URI Too Long',
+        415: 'Unsupported Media Type',
+        416: 'Range Not Satisfiable',
+        417: 'Expectation Failed',
+        418: 'Im a teapot',
+        421: 'Misdirected Request',
+        422: 'Unprocessable Content',
+        423: 'Locked',
+        424: 'Failed Dependency',
+        425: 'Too Early',
+        426: 'Upgrade Required',
+        428: 'Precondition Required',
+        429: 'Too Many Requests',
+        431: 'Request Header Fields Too Large',
+        451: 'Unavailable For Legal Reasons',
+        500: 'Internal Server Error',
+        501: 'Not Implemented',
+        502: 'Bad Gateway',
+        503: 'Service Unavailable',
+        504: 'Gateway Timeout',
+        505: 'HTTP Version Not Supported',
+        506: 'Variant Also Negotiates',
+        507: 'Insufficient Storage',
+        508: 'Loop Detected',
+        510: 'Not Extended',
+        511: 'Network Authentication Required',
+        ...options.errors,
+    };
+    const error = errors[result.status];
+    if (error) {
+        throw new ApiError_1.ApiError(options, result, error);
+    }
+    if (!result.ok) {
+        const errorStatus = result.status ?? 'unknown';
+        const errorStatusText = result.statusText ?? 'unknown';
+        const errorBody = (() => {
+            try {
+                return JSON.stringify(result.body, null, 2);
+            }
+            catch (e) {
+                return undefined;
+            }
+        })();
+        throw new ApiError_1.ApiError(options, result, `Generic Error: status: ${errorStatus}; status text: ${errorStatusText}; body: ${errorBody}`);
+    }
+};
+exports.catchErrorCodes = catchErrorCodes;
+/**
+ * Request method
+ * @param config The OpenAPI configuration object
+ * @param options The request options from the service
+ * @returns CancelablePromise<T>
+ * @throws ApiError
+ */
+const request = (config, options) => {
+    return new CancelablePromise_1.CancelablePromise(async (resolve, reject, onCancel) => {
+        try {
+            const url = getUrl(config, options);
+            const formData = (0, exports.getFormData)(options);
+            const body = (0, exports.getRequestBody)(options);
+            const headers = await (0, exports.getHeaders)(config, options);
+            if (!onCancel.isCancelled) {
+                let response = await (0, exports.sendRequest)(config, options, url, body, formData, headers, onCancel);
+                for (const fn of config.interceptors.response._fns) {
+                    response = await fn(response);
+                }
+                const responseBody = await (0, exports.getResponseBody)(response);
+                const responseHeader = (0, exports.getResponseHeader)(response, options.responseHeader);
+                let transformedBody = responseBody;
+                if (options.responseTransformer && response.ok) {
+                    transformedBody = options.responseTransformer(responseBody);
+                }
+                const result = {
+                    url,
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: responseHeader ?? transformedBody,
+                };
+                (0, exports.catchErrorCodes)(options, result);
+                resolve(result.body);
+            }
+        }
+        catch (error) {
+            reject(error);
+        }
+    });
+};
+exports.request = request;
+
+
+/***/ }),
+
+/***/ 7929:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.OpenAPI = exports.CancelError = exports.CancelablePromise = exports.ApiError = void 0;
+// This file is auto-generated by @hey-api/openapi-ts
+var ApiError_1 = __nccwpck_require__(2439);
+Object.defineProperty(exports, "ApiError", ({ enumerable: true, get: function () { return ApiError_1.ApiError; } }));
+var CancelablePromise_1 = __nccwpck_require__(5542);
+Object.defineProperty(exports, "CancelablePromise", ({ enumerable: true, get: function () { return CancelablePromise_1.CancelablePromise; } }));
+Object.defineProperty(exports, "CancelError", ({ enumerable: true, get: function () { return CancelablePromise_1.CancelError; } }));
+var OpenAPI_1 = __nccwpck_require__(3421);
+Object.defineProperty(exports, "OpenAPI", ({ enumerable: true, get: function () { return OpenAPI_1.OpenAPI; } }));
+__exportStar(__nccwpck_require__(6976), exports);
+__exportStar(__nccwpck_require__(2740), exports);
+__exportStar(__nccwpck_require__(3268), exports);
+
+
+/***/ }),
+
+/***/ 6976:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+// This file is auto-generated by @hey-api/openapi-ts
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.$VersionInfoResponse = exports.$VersionInfo = exports.$VersionIssues = exports.$DeployedIssues = exports.$DefaultBoolean = exports.$DeploymentDetail = exports.$EnvironmentInfoResponse = exports.$EnvironmentInfo = exports.$EnvironmentInfoSelector = exports.$DeploymentInfo = exports.$EnvironmentInfoRequest = exports.$VersionInfoRequest = exports.$EnvironmentWatcher = exports.$WatcherStatistics = exports.$OptionReferenceResourceResponse = exports.$OptionReferenceResource = exports.$CloneEnvironmentRequest = exports.$CloneEnvironmentOverride = exports.$EnvironmentReferenceResponse = exports.$EnvironmentReference = exports.$PaginatedEnvironmentResponse = exports.$EnvironmentFilter = exports.$EnvironmentResponse = exports.$EnvironmentRequest = exports.$EnvironmentPermissionScheme = exports.$EnvironmentSearchCriterion = exports.$IssueDeployedRequest = exports.$EnvironmentsScope = exports.$EnvironmentStatusChange = exports.$StatusChangesResponse = exports.$StatusChangeResultType = exports.$StatusChangeResult = exports.$StatusChange = exports.$EnvironmentStatusChangeRequest = exports.$ScopedStatusChangeRequest = exports.$EnvironmentStatus = exports.$EnvironmentCategoryType = exports.$EnvironmentCategory = exports.$CreatableNamedReference = exports.$NamedReference = exports.$DeploymentConfiguration = exports.$DeploymentRequest = exports.$DeploymentResponse = exports.$AttributeValue = exports.$Attribute = exports.$TierType = exports.$ApplicationResponse = exports.$ApplicationRequest = exports.$ErrorCollection = void 0;
+exports.$ErrorCollection = {
+    type: 'object',
+    properties: {
+        errorMessages: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        },
+        errors: {
+            type: 'object',
+            additionalProperties: {
+                type: 'string'
+            }
+        },
+        status: {
+            type: 'integer',
+            format: 'int32'
+        }
+    }
+};
+exports.$ApplicationRequest = {
+    type: 'object',
+    required: ['name'],
+    properties: {
+        name: {
+            type: 'string',
+            example: 'eCommerce'
+        },
+        versionPrefix: {
+            type: 'string',
+            example: 'ECOM'
+        },
+        mappedProjectId: {
+            type: 'integer',
+            format: 'int64',
+            example: 10
+        },
+        createNewVersion: {
+            type: 'boolean'
+        },
+        deploymentConfiguration: {
+            '$ref': '#/components/schemas/DeploymentConfiguration'
+        },
+        deploymentAttributes: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/Attribute'
+            }
+        },
+        tierType: {
+            '$ref': '#/components/schemas/TierType'
+        },
+        parents: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        tiers: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        incomingDependencies: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        outgoingDependencies: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        }
+    }
+};
+exports.$ApplicationResponse = {
+    type: 'object',
+    required: ['id', 'name'],
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1
+        },
+        name: {
+            type: 'string',
+            example: 'eCommerce'
+        },
+        versionPrefix: {
+            type: 'string',
+            example: 'ECOM'
+        },
+        mappedProjectId: {
+            type: 'integer',
+            format: 'int64',
+            example: 10
+        },
+        createNewVersion: {
+            type: 'boolean'
+        },
+        deploymentConfiguration: {
+            '$ref': '#/components/schemas/DeploymentConfiguration'
+        },
+        deploymentAttributes: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/Attribute'
+            }
+        },
+        tierType: {
+            '$ref': '#/components/schemas/TierType'
+        },
+        parents: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        tiers: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        incomingDependencies: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        outgoingDependencies: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        }
+    }
+};
+exports.$TierType = {
+    type: 'string',
+    example: 'STANDALONE',
+    enum: ['STANDALONE', 'TIER']
+};
+exports.$Attribute = {
+    type: 'object',
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32'
+        },
+        key: {
+            type: 'string'
+        },
+        type: {
+            type: 'string'
+        },
+        secured: {
+            type: 'boolean'
+        },
+        createdBy: {
+            type: 'string'
+        },
+        createdOn: {
+            type: 'integer',
+            'x-apw-epoch-date': true
+        },
+        modifiedBy: {
+            type: 'string'
+        },
+        modifiedOn: {
+            type: 'integer',
+            'x-apw-epoch-date': true
+        }
+    }
+};
+exports.$AttributeValue = {
+    type: 'object',
+    example: '{ "Owner": "John" }',
+    properties: {
+        name: {
+            type: 'string'
+        },
+        value: {
+            type: 'string'
+        }
+    }
+};
+exports.$DeploymentResponse = {
+    type: 'object',
+    required: ['applicationId', 'applicationName', 'categoryId', 'categoryName', 'deployedTime', 'deployer', 'deploymentId', 'environmentId', 'id'],
+    properties: {
+        deploymentId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        environmentId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        versionName: {
+            type: 'string',
+            example: 'ECOM 1.2.4'
+        },
+        versionId: {
+            type: 'string',
+            example: '101002'
+        },
+        deployer: {
+            type: 'string',
+            example: 'admin',
+            readOnly: true
+        },
+        deployedTime: {
+            type: 'integer',
+            'x-apw-epoch-date': true,
+            example: 1522011409588,
+            readOnly: true
+        },
+        categoryId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        categoryName: {
+            type: 'string',
+            example: 'Staging',
+            readOnly: true
+        },
+        applicationId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        applicationName: {
+            type: 'string',
+            example: 'eCommerce',
+            readOnly: true
+        },
+        endTime: {
+            type: 'integer',
+            'x-apw-epoch-date': true,
+            example: 1522011417783,
+            readOnly: true
+        },
+        duration: {
+            type: 'integer',
+            format: 'int64',
+            example: 8195,
+            readOnly: true
+        },
+        buildNumber: {
+            type: 'string',
+            example: '2839948'
+        },
+        description: {
+            type: 'string',
+            example: 'Release candidate for Summer 2020'
+        },
+        orderedAttributes: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/AttributeValue'
+            }
+        },
+        issueKeys: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        },
+        attributes: {
+            additionalProperties: {
+                type: 'string'
+            }
+        }
+    }
+};
+exports.$DeploymentRequest = {
+    type: 'object',
+    required: ['applicationId', 'applicationName', 'categoryId', 'categoryName', 'deployedTime', 'deployer', 'deploymentId', 'environmentId', 'id'],
+    properties: {
+        deploymentId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        versionName: {
+            type: 'string',
+            example: 'ECOM 1.2.4'
+        },
+        versionId: {
+            type: 'string',
+            example: '101002'
+        },
+        buildNumber: {
+            type: 'string',
+            example: '2839948'
+        },
+        description: {
+            type: 'string',
+            example: 'Release candidate for Summer 2020'
+        },
+        issueKeys: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        },
+        attributes: {
+            additionalProperties: {
+                type: 'string'
+            }
+        }
+    }
+};
+exports.$DeploymentConfiguration = {
+    type: 'object',
+    properties: {
+        showBuildNumber: {
+            type: 'boolean'
+        },
+        showDescription: {
+            type: 'boolean'
+        },
+        preventDeploymentMerge: {
+            type: 'boolean'
+        },
+        readonlyDeployedIssues: {
+            type: 'boolean'
+        }
+    }
+};
+exports.$NamedReference = {
+    type: 'object',
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32'
+        },
+        name: {
+            type: 'string'
+        }
+    }
+};
+exports.$CreatableNamedReference = {
+    type: 'object',
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32'
+        },
+        name: {
+            type: 'string'
+        },
+        autoCreate: {
+            type: 'boolean',
+            description: 'should we create reference if not existing'
+        }
+    }
+};
+exports.$EnvironmentCategory = {
+    type: 'object',
+    required: ['id', 'name'],
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1
+        },
+        name: {
+            type: 'string',
+            example: 'Staging'
+        },
+        order: {
+            type: 'integer',
+            format: 'int32',
+            example: 10
+        },
+        type: {
+            '$ref': '#/components/schemas/EnvironmentCategoryType'
+        }
+    }
+};
+exports.$EnvironmentCategoryType = {
+    type: 'string',
+    example: 'STAGING',
+    enum: ['DEVELOPMENT', 'TESTING', 'STAGING', 'PRODUCTION']
+};
+exports.$EnvironmentStatus = {
+    type: 'object',
+    required: ['id', 'name'],
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1
+        },
+        name: {
+            type: 'string',
+            example: 'Available'
+        },
+        description: {
+            type: 'string',
+            example: 'Environment is available'
+        },
+        color: {
+            type: 'string',
+            example: 'GREEN'
+        },
+        order: {
+            type: 'integer',
+            format: 'int32',
+            example: 10
+        }
+    }
+};
+exports.$ScopedStatusChangeRequest = {
+    type: 'object',
+    properties: {
+        scope: {
+            '$ref': '#/components/schemas/EnvironmentsScope'
+        },
+        status: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        ignoredStatuses: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        statusMapping: {
+            type: 'object',
+            additionalProperties: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        }
+    }
+};
+exports.$EnvironmentStatusChangeRequest = {
+    type: 'object',
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1
+        },
+        name: {
+            type: 'string',
+            example: 'Available'
+        }
+    },
+    xml: {
+        name: 'statusChangeRequest'
+    }
+};
+exports.$StatusChange = {
+    type: 'object',
+    required: ['applicationId', 'applicationName', 'categoryId', 'categoryName', 'changedBy', 'changedOn', 'id', 'statusName'],
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        categoryId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        categoryName: {
+            type: 'string',
+            example: 'Staging',
+            readOnly: true
+        },
+        applicationId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        applicationName: {
+            type: 'string',
+            example: 'eCommerce',
+            readOnly: true
+        },
+        statusName: {
+            type: 'string',
+            example: 'Available',
+            readOnly: true
+        },
+        status: {
+            '$ref': '#/components/schemas/EnvironmentStatus'
+        },
+        changedBy: {
+            type: 'string',
+            example: 'admin',
+            readOnly: true
+        },
+        changedOn: {
+            type: 'integer',
+            format: 'int64',
+            'x-apw-epoch-date': true,
+            example: 1522097356939,
+            readOnly: true
+        },
+        endTime: {
+            type: 'integer',
+            format: 'int64',
+            'x-apw-epoch-date': true,
+            example: 1522097356910,
+            description: 'endTime is not defined if status is the current one',
+            readOnly: true
+        },
+        duration: {
+            type: 'integer',
+            format: 'int64',
+            example: 3600000,
+            description: 'duration in ms. Only present if endTime is set',
+            readOnly: true
+        }
+    },
+    xml: {
+        name: 'change-status'
+    }
+};
+exports.$StatusChangeResult = {
+    type: 'object',
+    properties: {
+        errors: {
+            '$ref': '#/components/schemas/ErrorCollection'
+        },
+        type: {
+            '$ref': '#/components/schemas/StatusChangeResultType'
+        },
+        previousStatus: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        currentStatus: {
+            '$ref': '#/components/schemas/NamedReference'
+        }
+    }
+};
+exports.$StatusChangeResultType = {
+    type: 'string',
+    enum: ['IGNORED', 'CHANGED', 'FAILED', 'NOT_MODIFIED']
+};
+exports.$StatusChangesResponse = {
+    type: 'object',
+    properties: {
+        requestedStatus: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        environments: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/EnvironmentStatusChange'
+            }
+        }
+    }
+};
+exports.$EnvironmentStatusChange = {
+    type: 'object',
+    properties: {
+        environment: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        result: {
+            '$ref': '#/components/schemas/StatusChangeResult'
+        }
+    }
+};
+exports.$EnvironmentsScope = {
+    type: 'object',
+    properties: {
+        criteria: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/EnvironmentSearchCriterion'
+            }
+        }
+    }
+};
+exports.$IssueDeployedRequest = {
+    type: 'object',
+    properties: {
+        issueKey: {
+            type: 'string'
+        },
+        scope: {
+            '$ref': '#/components/schemas/EnvironmentsScope'
+        },
+        buildNumber: {
+            type: 'string'
+        },
+        versionName: {
+            type: 'string'
+        },
+        noEmailNotification: {
+            type: 'boolean'
+        }
+    }
+};
+exports.$EnvironmentSearchCriterion = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string'
+        },
+        values: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        }
+    }
+};
+exports.$EnvironmentPermissionScheme = {
+    type: 'object',
+    required: ['description', 'global', 'id', 'name', 'roles'],
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1
+        },
+        name: {
+            type: 'string',
+            example: 'Default Environment Permission Scheme'
+        },
+        description: {
+            type: 'string',
+            example: 'Default Environment Permission Scheme'
+        },
+        roles: {
+            type: 'array',
+            example: "['Admin', 'Anonymous', 'Mosaic Team Members']",
+            items: {
+                type: 'string'
+            }
+        },
+        global: {
+            type: 'boolean',
+            readOnly: true
+        }
+    }
+};
+exports.$EnvironmentRequest = {
+    type: 'object',
+    required: ['application', 'category', 'name'],
+    properties: {
+        application: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        category: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        name: {
+            type: 'string'
+        },
+        description: {
+            type: 'string'
+        },
+        environmentPermissionScheme: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        url: {
+            type: 'string',
+            example: 'https://ecom-staging-my-company.com/welcome'
+        },
+        parent: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        tiers: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        incomingDependencies: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        outgoingDependencies: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        attributes: {
+            type: 'object',
+            additionalProperties: {
+                type: 'string'
+            }
+        },
+        attributesToDelete: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        }
+    }
+};
+exports.$EnvironmentResponse = {
+    type: 'object',
+    required: ['application', 'category', 'name'],
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        application: {
+            '$ref': '#/components/schemas/ApplicationResponse'
+        },
+        category: {
+            '$ref': '#/components/schemas/EnvironmentCategory'
+        },
+        name: {
+            type: 'string'
+        },
+        description: {
+            type: 'string'
+        },
+        environmentPermissionScheme: {
+            '$ref': '#/components/schemas/EnvironmentPermissionScheme'
+        },
+        status: {
+            '$ref': '#/components/schemas/EnvironmentStatus'
+        },
+        url: {
+            type: 'string',
+            example: 'https://ecom-staging-my-company.com/welcome'
+        },
+        deployment: {
+            '$ref': '#/components/schemas/DeploymentResponse'
+        },
+        watched: {
+            type: 'boolean',
+            example: true,
+            readOnly: true
+        },
+        parent: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        tiers: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        incomingDependencies: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        outgoingDependencies: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/NamedReference'
+            }
+        },
+        attributes: {
+            type: 'object',
+            additionalProperties: {
+                type: 'string'
+            }
+        }
+    }
+};
+exports.$EnvironmentFilter = {
+    type: 'object',
+    properties: {
+        criteria: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/EnvironmentSearchCriterion'
+            }
+        },
+        sortOrder: {
+            type: 'string'
+        },
+        sortBy: {
+            type: 'string'
+        },
+        limit: {
+            type: 'integer',
+            format: 'int32'
+        },
+        offset: {
+            type: 'integer',
+            format: 'int32'
+        },
+        expand: {
+            type: 'boolean'
+        }
+    }
+};
+exports.$PaginatedEnvironmentResponse = {
+    type: 'object',
+    required: ['count', 'offset'],
+    properties: {
+        count: {
+            type: 'integer',
+            format: 'int64'
+        },
+        limit: {
+            type: 'integer',
+            format: 'int32'
+        },
+        offset: {
+            type: 'integer',
+            format: 'int64'
+        },
+        environments: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/EnvironmentResponse'
+            }
+        }
+    }
+};
+exports.$EnvironmentReference = {
+    type: 'object',
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32'
+        },
+        name: {
+            type: 'string'
+        },
+        application: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        category: {
+            '$ref': '#/components/schemas/NamedReference'
+        }
+    }
+};
+exports.$EnvironmentReferenceResponse = {
+    type: 'object',
+    properties: {
+        items: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/EnvironmentReference'
+            }
+        }
+    }
+};
+exports.$CloneEnvironmentOverride = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string'
+        }
+    }
+};
+exports.$CloneEnvironmentRequest = {
+    type: 'object',
+    properties: {
+        from: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        failIfNameExists: {
+            type: 'boolean'
+        },
+        includeTiers: {
+            type: 'boolean'
+        },
+        override: {
+            '$ref': '#/components/schemas/CloneEnvironmentOverride'
+        }
+    }
+};
+exports.$OptionReferenceResource = {
+    type: 'object',
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int64'
+        },
+        name: {
+            type: 'string'
+        }
+    }
+};
+exports.$OptionReferenceResourceResponse = {
+    type: 'object',
+    properties: {
+        items: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/OptionReferenceResource'
+            }
+        }
+    }
+};
+exports.$WatcherStatistics = {
+    type: 'object',
+    properties: {
+        dumb: {
+            type: 'string'
+        }
+    }
+};
+exports.$EnvironmentWatcher = {
+    type: 'object',
+    required: ['environmentId', 'watchDeployedVersion', 'watchEnvironmentChanged', 'watchIssueAdded', 'watchIssueRemoved', 'watchStatus'],
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        userKey: {
+            type: 'string'
+        },
+        userName: {
+            type: 'string',
+            example: 'admin'
+        },
+        environmentId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1
+        },
+        watchEnvironmentChanged: {
+            type: 'boolean',
+            example: true
+        },
+        watchDeployedVersion: {
+            type: 'boolean',
+            example: true
+        },
+        watchStatus: {
+            type: 'boolean',
+            example: true
+        },
+        watchIssueAdded: {
+            type: 'boolean',
+            example: true
+        },
+        watchIssueRemoved: {
+            type: 'boolean',
+            example: true
+        }
+    }
+};
+exports.$VersionInfoRequest = {
+    type: 'object',
+    required: ['versionName'],
+    properties: {
+        application: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        versionName: {
+            type: 'string',
+            example: 'ECOM-2.1'
+        },
+        versionDescription: {
+            type: 'string'
+        },
+        startDate: {
+            type: 'string',
+            description: 'ISO-8601 date time format',
+            example: '2023-08-12T12:00:00Z'
+        },
+        releaseDate: {
+            type: 'string',
+            description: 'ISO-8601 date time format',
+            example: '2023-09-24T16:00:00Z'
+        },
+        released: {
+            type: 'boolean'
+        },
+        issues: {
+            '$ref': '#/components/schemas/VersionIssues'
+        }
+    }
+};
+exports.$EnvironmentInfoRequest = {
+    type: 'object',
+    required: ['environment'],
+    properties: {
+        environmentSelector: {
+            '$ref': '#/components/schemas/EnvironmentInfoSelector'
+        },
+        deployment: {
+            '$ref': '#/components/schemas/DeploymentInfo'
+        },
+        environment: {
+            '$ref': '#/components/schemas/EnvironmentInfo'
+        },
+        status: {
+            '$ref': '#/components/schemas/NamedReference'
+        }
+    }
+};
+exports.$DeploymentInfo = {
+    type: 'object',
+    properties: {
+        versionName: {
+            type: 'string',
+            example: 'ECOM 1.2.4'
+        },
+        deployedDate: {
+            type: 'string',
+            description: 'ISO-8601 date time format',
+            example: '2023-09-24T16:00:00Z'
+        },
+        versionId: {
+            type: 'string',
+            example: '101002'
+        },
+        buildNumber: {
+            type: 'string',
+            example: '2839948'
+        },
+        description: {
+            type: 'string',
+            example: 'Release candidate for Summer 2020'
+        },
+        attributes: {
+            additionalProperties: {
+                type: 'string'
+            }
+        },
+        issues: {
+            '$ref': '#/components/schemas/DeployedIssues'
+        }
+    }
+};
+exports.$EnvironmentInfoSelector = {
+    type: 'object',
+    properties: {
+        environment: {
+            '$ref': '#/components/schemas/CreatableNamedReference'
+        },
+        application: {
+            '$ref': '#/components/schemas/CreatableNamedReference'
+        },
+        category: {
+            '$ref': '#/components/schemas/CreatableNamedReference'
+        }
+    }
+};
+exports.$EnvironmentInfo = {
+    type: 'object',
+    properties: {
+        name: {
+            type: 'string'
+        },
+        url: {
+            type: 'string'
+        },
+        attributes: {
+            additionalProperties: {
+                type: 'string'
+            }
+        }
+    }
+};
+exports.$EnvironmentInfoResponse = {
+    type: 'object',
+    required: ['environment'],
+    properties: {
+        environment: {
+            '$ref': '#/components/schemas/NamedReference'
+        },
+        deployment: {
+            '$ref': '#/components/schemas/DeploymentDetail'
+        },
+        status: {
+            '$ref': '#/components/schemas/NamedReference'
+        }
+    }
+};
+exports.$DeploymentDetail = {
+    type: 'object',
+    properties: {
+        id: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        environmentId: {
+            type: 'integer',
+            format: 'int32',
+            example: 1,
+            readOnly: true
+        },
+        versionName: {
+            type: 'string',
+            example: 'ECOM 1.2.4'
+        },
+        versionId: {
+            type: 'string',
+            example: '101002'
+        },
+        deployer: {
+            type: 'string',
+            example: 'admin',
+            readOnly: true
+        },
+        deployedOn: {
+            type: 'string',
+            description: 'ISO-8601 date time format',
+            example: '2023-09-24T16:00:00Z'
+        },
+        buildNumber: {
+            type: 'string',
+            example: '2839948'
+        },
+        description: {
+            type: 'string',
+            example: 'Release candidate for Summer 2020'
+        },
+        issueKeys: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        },
+        attributes: {
+            additionalProperties: {
+                type: 'string'
+            }
+        }
+    }
+};
+exports.$DefaultBoolean = {
+    type: 'string',
+    enum: ['yes', 'no', 'default']
+};
+exports.$DeployedIssues = {
+    type: 'object',
+    properties: {
+        addDoneIssuesFixedInVersion: {
+            type: 'boolean',
+            default: false
+        },
+        issueKeys: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        },
+        jql: {
+            type: 'string'
+        },
+        noFixVersionUpdate: {
+            type: 'boolean',
+            default: false
+        },
+        sendJiraNotification: {
+            type: 'boolean',
+            default: false
+        }
+    }
+};
+exports.$VersionIssues = {
+    type: 'object',
+    properties: {
+        issueKeys: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        },
+        jql: {
+            type: 'string'
+        },
+        sendJiraNotification: {
+            type: 'boolean',
+            default: false
+        }
+    }
+};
+exports.$VersionInfo = {
+    type: 'object',
+    required: ['versionId', 'versionName'],
+    properties: {
+        versionId: {
+            type: 'integer',
+            format: 'int64',
+            example: 10200
+        },
+        versionName: {
+            type: 'string',
+            example: 'ECOM-2.1'
+        },
+        versionDescription: {
+            type: 'string'
+        },
+        startDate: {
+            type: 'string',
+            example: '2023-08-12T12:00:00Z'
+        },
+        releaseDate: {
+            type: 'string',
+            example: '2023-09-24T16:00:00Z'
+        },
+        released: {
+            type: 'boolean'
+        },
+        fixedIssues: {
+            type: 'array',
+            items: {
+                type: 'string'
+            }
+        }
+    }
+};
+exports.$VersionInfoResponse = {
+    type: 'object',
+    required: ['versionId', 'versionName'],
+    properties: {
+        versions: {
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/VersionInfo'
+            },
+            format: 'int64',
+            example: 10200
+        }
+    }
+};
+
+
+/***/ }),
+
+/***/ 2740:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+// This file is auto-generated by @hey-api/openapi-ts
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.WatcherService = exports.EnvironmentService = exports.EnvironmentStatusChangeService = exports.VersionService = exports.DeploymentService = exports.EnvironmentStatusService = exports.CategoryService = exports.ApplicationService = void 0;
+const OpenAPI_1 = __nccwpck_require__(3421);
+const request_1 = __nccwpck_require__(6951);
+class ApplicationService {
+    /**
+     * Create a new application
+     * @param data The data for the request.
+     * @param data.requestBody An application request
+     * @returns ApplicationResponse successful operation
+     * @throws ApiError
+     */
+    static postApplication(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/application',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.'
+            }
+        });
+    }
+    /**
+     * Get an application
+     * @param data The data for the request.
+     * @param data.id
+     * @returns ApplicationResponse successful operation
+     * @throws ApiError
+     */
+    static getApplicationById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/application/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Update an application
+     * # Updating an application
+     * Updating an application can be done in patch style mode. For example:
+     * * select an id
+     * * provide the id in the URL
+     * * call the method
+     * @param data The data for the request.
+     * @param data.id
+     * @param data.requestBody An application request
+     * @returns ApplicationResponse successful operation
+     * @throws ApiError
+     */
+    static putApplicationById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'PUT',
+            url: '/application/{id}',
+            path: {
+                id: data.id
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.',
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Delete an application
+     * @param data The data for the request.
+     * @param data.id
+     * @returns unknown successful operation
+     * @throws ApiError
+     */
+    static deleteApplicationById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'DELETE',
+            url: '/application/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Find applications
+     * @param data The data for the request.
+     * @param data.expand Set it to false for lighter JSON
+     * @returns ApplicationResponse successful operation
+     * @throws ApiError
+     */
+    static getApplications(data = {}) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/applications',
+            query: {
+                _expand: data.expand
+            }
+        });
+    }
+}
+exports.ApplicationService = ApplicationService;
+class CategoryService {
+    /**
+     * Create new category
+     * @param data The data for the request.
+     * @param data.requestBody A category
+     * @returns EnvironmentCategory successful operation
+     * @throws ApiError
+     */
+    static postCategory(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/category',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.'
+            }
+        });
+    }
+    /**
+     * Get category
+     * @param data The data for the request.
+     * @param data.id
+     * @returns EnvironmentCategory successful operation
+     * @throws ApiError
+     */
+    static getCategoryById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/category/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Update category
+     * @param data The data for the request.
+     * @param data.id
+     * @param data.requestBody a category
+     * @returns EnvironmentCategory successful operation
+     * @throws ApiError
+     */
+    static putCategoryById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'PUT',
+            url: '/category/{id}',
+            path: {
+                id: data.id
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.',
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Delete category
+     * @param data The data for the request.
+     * @param data.id
+     * @returns EnvironmentCategory successful operation
+     * @throws ApiError
+     */
+    static delete(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'DELETE',
+            url: '/category/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Get all categories
+     * @returns EnvironmentCategory successful operation
+     * @throws ApiError
+     */
+    static getCategories() {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/categories'
+        });
+    }
+}
+exports.CategoryService = CategoryService;
+class EnvironmentStatusService {
+    /**
+     * Create new environment status
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns EnvironmentStatus successful operation
+     * @throws ApiError
+     */
+    static postStatus(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/status',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.'
+            }
+        });
+    }
+    /**
+     * Get environment status
+     * @param data The data for the request.
+     * @param data.id
+     * @returns EnvironmentStatus successful operation
+     * @throws ApiError
+     */
+    static getStatusById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/status/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Update an environment status
+     * @param data The data for the request.
+     * @param data.id
+     * @param data.requestBody
+     * @returns EnvironmentStatus successful operation
+     * @throws ApiError
+     */
+    static putStatusById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'PUT',
+            url: '/status/{id}',
+            path: {
+                id: data.id
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.',
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Delete an environment status
+     * @param data The data for the request.
+     * @param data.id
+     * @returns unknown successful operation
+     * @throws ApiError
+     */
+    static deleteStatusById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'DELETE',
+            url: '/status/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Get all existing Statuses
+     * @returns EnvironmentStatus successful operation
+     * @throws ApiError
+     */
+    static getStatuses() {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/statuses'
+        });
+    }
+}
+exports.EnvironmentStatusService = EnvironmentStatusService;
+class DeploymentService {
+    /**
+     * Get the deployed version
+     * @param data The data for the request.
+     * @param data.environmentId Environment id. Ex: 1
+     * @param data.application Application name. Ex: eCommerce
+     * @param data.category Category name. Ex: Staging
+     * @param data.dateTime Date in the past. Ex: 2018-01-31 13:30 or in ms : 1537679702182
+     * @param data.time Absolute time in ms. Ex: 12300054 . Note that time must be in
+     * the past. Time will override dateTime param if both params are set.
+     *
+     * @returns DeploymentResponse successful operation
+     * @throws ApiError
+     */
+    static getDeployment(data = {}) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/deployment',
+            query: {
+                environmentId: data.environmentId,
+                application: data.application,
+                category: data.category,
+                dateTime: data.dateTime,
+                time: data.time
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Update the deployed version
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @param data.environmentId Environment id. Ex: 1
+     * @param data.application Application name. Ex: eCommerce
+     * @param data.category Category name. Ex: Staging
+     * @param data.dateTime Date in the past. Ex: 2018-01-31 13:30. Note that timezone of
+     * the server will be used to get the time! Prefer using the time parameter
+     * in ms to avoid timezone issues.
+     *
+     * @param data.time Absolute time in ms. Ex: 12300054 . Note that time must be in
+     * the past. Time will override dateTime param if both params are set.
+     *
+     * @returns DeploymentResponse successful operation
+     * @throws ApiError
+     */
+    static putDeployment(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'PUT',
+            url: '/deployment',
+            query: {
+                environmentId: data.environmentId,
+                application: data.application,
+                category: data.category,
+                dateTime: data.dateTime,
+                time: data.time
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.'
+            }
+        });
+    }
+    /**
+     * Get deployment
+     * @param data The data for the request.
+     * @param data.id
+     * @returns DeploymentResponse successful operation
+     * @throws ApiError
+     */
+    static getDeploymentById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/deployment/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Remove deployment
+     * @param data The data for the request.
+     * @param data.id
+     * @returns DeploymentResponse successful operation
+     * @throws ApiError
+     */
+    static deleteDeploymentById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'DELETE',
+            url: '/deployment/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Search deployments
+     * @param data The data for the request.
+     * @param data.environmentId
+     * @param data.application
+     * @param data.category
+     * @param data.start Ex: 2018-01-31
+     * @param data.end Ex: 2018-02-25
+     * @param data.maxResults Unlimited number of results: -1
+     * @param data.expand Set it to false for lighter JSON
+     * @returns DeploymentResponse successful operation
+     * @throws ApiError
+     */
+    static getDeployments(data = {}) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/deployments',
+            query: {
+                environmentId: data.environmentId,
+                application: data.application,
+                category: data.category,
+                start: data.start,
+                end: data.end,
+                maxResults: data.maxResults,
+                expand: data.expand
+            }
+        });
+    }
+    /**
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns unknown successful operation
+     * @throws ApiError
+     */
+    static postDeploymentsIssue(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/deployments/issue',
+            body: data.requestBody,
+            mediaType: 'application/json'
+        });
+    }
+}
+exports.DeploymentService = DeploymentService;
+class VersionService {
+    /**
+     * Create and Update Jira Versions
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns VersionInfoResponse successful operation
+     * @throws ApiError
+     */
+    static postVersion(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/version',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.'
+            }
+        });
+    }
+}
+exports.VersionService = VersionService;
+class EnvironmentStatusChangeService {
+    /**
+     * Get current status of an environment
+     * @param data The data for the request.
+     * @param data.environmentId Environment id. Ex: 1
+     * @param data.application Application name. Ex: eCommerce
+     * @param data.category Category name. Ex: Staging
+     * @returns StatusChange successful operation
+     * @throws ApiError
+     */
+    static getStatusChange(data = {}) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/status-change',
+            query: {
+                environmentId: data.environmentId,
+                application: data.application,
+                category: data.category
+            },
+            errors: {
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Change status of an environment
+     * @param data The data for the request.
+     * @param data.requestBody Examples of valid json body:
+     * {"name":"Unavailable"}
+     * or
+     * {id": 1}
+     *
+     * @param data.environmentId Environment id. Ex: 1
+     * @param data.application Application name. Ex: eCommerce
+     * @param data.category Category name. Ex: Staging
+     * @returns StatusChange successful operation
+     * @throws ApiError
+     */
+    static putStatusChange(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'PUT',
+            url: '/status-change',
+            query: {
+                environmentId: data.environmentId,
+                application: data.application,
+                category: data.category
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.',
+                404: 'Resource has not been found.'
+            }
+        });
+    }
+    /**
+     * Search for status changes
+     * @param data The data for the request.
+     * @param data.environmentId Environment id. Ex: 1
+     * @param data.application Application name. Ex: eCommerce
+     * @param data.category Category name. Ex: Staging
+     * @param data.start Ex: 2018-01-31
+     * @param data.end Ex: 2019-01-31
+     * @param data.maxResult Unlimited number of results: -1
+     * @param data.expand Set it to false for lighter JSON
+     * @returns StatusChange successful operation
+     * @throws ApiError
+     */
+    static getStatusChanges(data = {}) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/status-changes',
+            query: {
+                environmentId: data.environmentId,
+                application: data.application,
+                category: data.category,
+                start: data.start,
+                end: data.end,
+                maxResult: data.maxResult,
+                expand: data.expand
+            }
+        });
+    }
+    /**
+     * Change status of environments matching criteria
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns StatusChangesResponse successful operation
+     * @throws ApiError
+     */
+    static postStatusChanges(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/status-changes',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.'
+            }
+        });
+    }
+    /**
+     * Change status of environments matching criteria
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns StatusChangesResponse successful operation
+     * @throws ApiError
+     */
+    static putStatusChanges(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'PUT',
+            url: '/status-changes',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.'
+            }
+        });
+    }
+}
+exports.EnvironmentStatusChangeService = EnvironmentStatusChangeService;
+class EnvironmentService {
+    /**
+     * Get an environment by application and category
+     * @param data The data for the request.
+     * @param data.application Application name. Ex: eCommerce
+     * @param data.category Category name. Ex: Staging
+     * @returns EnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static getEnvironment(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/environment',
+            query: {
+                application: data.application,
+                category: data.category
+            }
+        });
+    }
+    /**
+     * Create a new environment
+     * @param data The data for the request.
+     * @param data.requestBody Example of realistic body: <pre><code>{
+     * "application": { "name": "eCommerce" },
+     * "category": { "name":"Staging" },
+     * "environmentPermissionScheme": { "id": 1 },
+     * "url": "https://ecom-staging-my-company.com/welcome",
+     * "attributes": {
+     * "OS": "RedHat 7",
+     * "database": "postgres",
+     * "location": "EU"
+     * }
+     * }</code></pre>
+     * @returns EnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static postEnvironment(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/environment',
+            body: data.requestBody,
+            mediaType: 'application/json'
+        });
+    }
+    /**
+     * Clone environment
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns EnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static postEnvironmentClone(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/environment/clone',
+            body: data.requestBody,
+            mediaType: 'application/json'
+        });
+    }
+    /**
+     * Get an environment by id
+     * @param data The data for the request.
+     * @param data.id
+     * @returns EnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static getEnvironmentById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/environment/{id}',
+            path: {
+                id: data.id
+            }
+        });
+    }
+    /**
+     * Update an environment
+     * @param data The data for the request.
+     * @param data.id
+     * @param data.requestBody Example: set url and some attributes: <pre><code>{
+     * "url": "https://ecom-staging-my-company.com/welcome/NEWURL",
+     * "attributes": {
+     * "OS": "RedHat 8",
+     * "database": "mongo",
+     * "location": "US"
+     * }
+     * }</code></pre><br/>Example: change application and category: <pre><code>{
+     * "application": {
+     * "name": "Payment Service"
+     * },
+     * "category": {
+     * "name": "Demo"
+     * }
+     * }</code></pre>
+     * @returns EnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static putEnvironmentById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'PUT',
+            url: '/environment/{id}',
+            path: {
+                id: data.id
+            },
+            body: data.requestBody,
+            mediaType: 'application/json'
+        });
+    }
+    /**
+     * Delete environment
+     * @param data The data for the request.
+     * @param data.id
+     * @returns EnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static deleteEnvironmentById(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'DELETE',
+            url: '/environment/{id}',
+            path: {
+                id: data.id
+            }
+        });
+    }
+    /**
+     * Create and Push Environment Information
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns EnvironmentInfoResponse successful operation
+     * @throws ApiError
+     */
+    static postEnvironmentInformation(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/environment/information',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                400: 'Request was invalid, reason should be provided in response body.'
+            }
+        });
+    }
+    /**
+     * @deprecated
+     * Search environments by query parameters
+     * Combine any pre-defined <b>search parameters listed below</b>
+     * and pass them to url as query parameters. <br/><br/>Other parameters you can
+     * use:<br/>* parameters with no value to perform a <b>free text search</b> on
+     * all information of your environments (ex: <i>?Staging&eCommerce&RedHat</i>)<br/>*
+     * name of an <b>attribute as query parameter</b> (ex: <i>?OS=RedHat&database=Postgresql</i>)<br/><br/>Note
+     * that you can send the same parameter <b>multiple times</b> with different
+     * values (ex: <i>?applicationName=eCommerce&applicationName=PaymentService</i>).
+     * It will return environments matching at least one of the values'
+     *
+     * @param data The data for the request.
+     * @param data.applicationName Application name (ex: eCommerce)
+     * @param data.applicationId Application id (ex: 23)
+     * @param data.categoryName Category Name (ex: Staging)
+     * @param data.categoryId Category id (ex: 2)
+     * @param data.statusName Status Name (ex: Slow)
+     * @param data.statusId Status id (ex: 3)
+     * @param data.permissionSchemeName Permission scheme name (ex: Default Environment Permission Scheme)
+     * @param data.permissionSchemeId Permission scheme id (ex: 1)
+     * @param data.limit Max number of results (0 = unlimited)
+     * @param data.offset First result to return (ex: 10)
+     * @param data.sortOrder Sort order
+     * @param data.sortBy Sort by
+     * @param data.expand Set it to false for lighter JSON
+     * @returns EnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static getEnvironmentsSearch(data = {}) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/environments/search',
+            query: {
+                applicationName: data.applicationName,
+                applicationId: data.applicationId,
+                categoryName: data.categoryName,
+                categoryId: data.categoryId,
+                statusName: data.statusName,
+                statusId: data.statusId,
+                permissionSchemeName: data.permissionSchemeName,
+                permissionSchemeId: data.permissionSchemeId,
+                _limit: data.limit,
+                _offset: data.offset,
+                _sortOrder: data.sortOrder,
+                _sortBy: data.sortBy,
+                _expand: data.expand
+            }
+        });
+    }
+    /**
+     * @deprecated
+     * Search environments by search filter object
+     * You can use the same search criteria as the 'GET' version of <i>/environments/search</i>
+     * in a JSON object to trigger the search. <br/>Please refer to documentation
+     * of the 'GET' version of <i>/environments/search</i>  to get the list of available
+     * criteria.
+     *
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns EnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static postEnvironmentsSearch(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/environments/search',
+            body: data.requestBody,
+            mediaType: 'application/json'
+        });
+    }
+    /**
+     * Search environments by query parameters
+     * Combine any pre-defined <b>search parameters listed below</b>
+     * and pass them to url as query parameters. <br/><br/>Other parameters you can
+     * use:<br/>* parameters with no value to perform a <b>free text search</b> on
+     * all information of your environments (ex: <i>?Staging&eCommerce&RedHat</i>)<br/>*
+     * name of an <b>attribute as query parameter</b> (ex: <i>?OS=RedHat&database=Postgresql</i>)<br/><br/>Note
+     * that you can send the same parameter <b>multiple times</b> with different
+     * values (ex: <i>?applicationName=eCommerce&applicationName=PaymentService</i>).
+     * It will return environments matching at least one of the values
+     *
+     * @param data The data for the request.
+     * @param data.environmentId Environment id (ex: 23)
+     * @param data.environmentName Environment name (ex: eCommerce Dev 1)
+     * @param data.applicationName Application name (ex: eCommerce)
+     * @param data.applicationId Application id (ex: 23)
+     * @param data.categoryName Category Name (ex: Staging)
+     * @param data.categoryId Category id (ex: 2)
+     * @param data.statusName Status Name (ex: Slow)
+     * @param data.statusId Status id (ex: 3)
+     * @param data.permissionSchemeName Permission scheme name (ex: Default Environment Permission Scheme)
+     * @param data.permissionSchemeId Permission scheme id (ex: 1)
+     * @param data.panelSchemeId Panel scheme id (ex: 1)
+     * @param data.tierRelation Tier relation type (ex: HAS_TIERS, HAS_NO_TIERS, HAS_PARENT, IS_TIER, IS_ORPHAN)
+     * @param data.limit Max number of results (0 = unlimited)
+     * @param data.offset First result to return (ex: 10)
+     * @param data.sortOrder Sort order
+     * @param data.sortBy Sort by
+     * @param data.expand Set it to false for lighter JSON
+     * @returns PaginatedEnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static getEnvironmentsSearchPaginated(data = {}) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/environments/search/paginated',
+            query: {
+                environmentId: data.environmentId,
+                environmentName: data.environmentName,
+                applicationName: data.applicationName,
+                applicationId: data.applicationId,
+                categoryName: data.categoryName,
+                categoryId: data.categoryId,
+                statusName: data.statusName,
+                statusId: data.statusId,
+                permissionSchemeName: data.permissionSchemeName,
+                permissionSchemeId: data.permissionSchemeId,
+                panelSchemeId: data.panelSchemeId,
+                tierRelation: data.tierRelation,
+                _limit: data.limit,
+                _offset: data.offset,
+                _sortOrder: data.sortOrder,
+                _sortBy: data.sortBy,
+                _expand: data.expand
+            }
+        });
+    }
+    /**
+     * Search environments by search filter object
+     * You can use the same search criteria as the 'GET' version of <i>/environments/search/paginated</i>
+     * in a JSON object to trigger the search. <br/>Please refer to documentation
+     * of the 'GET' version of <i>/environments/search/paginated</i>  to get the
+     * list of available criteria.
+     *
+     * @param data The data for the request.
+     * @param data.requestBody search filter object
+     * @returns PaginatedEnvironmentResponse successful operation
+     * @throws ApiError
+     */
+    static postEnvironmentsSearchPaginated(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/environments/search/paginated',
+            body: data.requestBody,
+            mediaType: 'application/json'
+        });
+    }
+}
+exports.EnvironmentService = EnvironmentService;
+class WatcherService {
+    /**
+     * Count number of watchers per environment
+     * @returns WatcherStatistics successful operation
+     * @throws ApiError
+     */
+    static getWatcherStatistics() {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/watcher/statistics'
+        });
+    }
+    /**
+     * Get environment watcher
+     * @param data The data for the request.
+     * @param data.environmentId
+     * @param data.userName
+     * @param data.userKey
+     * @returns EnvironmentWatcher successful operation
+     * @throws ApiError
+     */
+    static getWatcherUser(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'GET',
+            url: '/watcher/user',
+            query: {
+                environmentId: data.environmentId,
+                userName: data.userName,
+                userKey: data.userKey
+            }
+        });
+    }
+    /**
+     * Create new environment watcher
+     * @param data The data for the request.
+     * @param data.environmentId
+     * @param data.requestBody
+     * @param data.userName
+     * @param data.userKey
+     * @returns EnvironmentWatcher successful operation
+     * @throws ApiError
+     */
+    static postWatcherUser(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'POST',
+            url: '/watcher/user',
+            query: {
+                environmentId: data.environmentId,
+                userName: data.userName,
+                userKey: data.userKey
+            },
+            body: data.requestBody,
+            mediaType: 'application/json'
+        });
+    }
+    /**
+     * Update environment watcher
+     * @param data The data for the request.
+     * @param data.environmentId
+     * @param data.requestBody
+     * @param data.userName
+     * @param data.userKey
+     * @returns EnvironmentWatcher successful operation
+     * @throws ApiError
+     */
+    static putWatcherUser(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'PUT',
+            url: '/watcher/user',
+            query: {
+                environmentId: data.environmentId,
+                userName: data.userName,
+                userKey: data.userKey
+            },
+            body: data.requestBody,
+            mediaType: 'application/json'
+        });
+    }
+    /**
+     * Remove environment watcher
+     * @param data The data for the request.
+     * @param data.environmentId
+     * @param data.userName
+     * @param data.userKey
+     * @returns unknown successful operation
+     * @throws ApiError
+     */
+    static deleteWatcherUser(data) {
+        return (0, request_1.request)(OpenAPI_1.OpenAPI, {
+            method: 'DELETE',
+            url: '/watcher/user',
+            query: {
+                environmentId: data.environmentId,
+                userName: data.userName,
+                userKey: data.userKey
+            }
+        });
+    }
+}
+exports.WatcherService = WatcherService;
+
+
+/***/ }),
+
+/***/ 3268:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+// This file is auto-generated by @hey-api/openapi-ts
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DefaultBoolean = exports.StatusChangeResultType = exports.EnvironmentCategoryType = exports.TierType = void 0;
+var TierType;
+(function (TierType) {
+    TierType["STANDALONE"] = "STANDALONE";
+    TierType["TIER"] = "TIER";
+})(TierType || (exports.TierType = TierType = {}));
+var EnvironmentCategoryType;
+(function (EnvironmentCategoryType) {
+    EnvironmentCategoryType["DEVELOPMENT"] = "DEVELOPMENT";
+    EnvironmentCategoryType["TESTING"] = "TESTING";
+    EnvironmentCategoryType["STAGING"] = "STAGING";
+    EnvironmentCategoryType["PRODUCTION"] = "PRODUCTION";
+})(EnvironmentCategoryType || (exports.EnvironmentCategoryType = EnvironmentCategoryType = {}));
+var StatusChangeResultType;
+(function (StatusChangeResultType) {
+    StatusChangeResultType["IGNORED"] = "IGNORED";
+    StatusChangeResultType["CHANGED"] = "CHANGED";
+    StatusChangeResultType["FAILED"] = "FAILED";
+    StatusChangeResultType["NOT_MODIFIED"] = "NOT_MODIFIED";
+})(StatusChangeResultType || (exports.StatusChangeResultType = StatusChangeResultType = {}));
+var DefaultBoolean;
+(function (DefaultBoolean) {
+    DefaultBoolean["YES"] = "yes";
+    DefaultBoolean["NO"] = "no";
+    DefaultBoolean["DEFAULT"] = "default";
+})(DefaultBoolean || (exports.DefaultBoolean = DefaultBoolean = {}));
+
+
+/***/ }),
+
+/***/ 399:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.run = run;
+const core = __importStar(__nccwpck_require__(2186));
+const github = __importStar(__nccwpck_require__(5438));
+// https://www.typescriptlang.org/docs/handbook/modules/appendices/esm-cjs-interop.html
+const client_1 = __nccwpck_require__(7929);
+function log(message) {
+    core.info(message);
+}
+async function run() {
+    try {
+        // const GoliveOctokit = Octokit.plugin(restEndpointMethods)
+        // const octokit = new GoliveOctokit()
+        const apiToken = core.getInput('apiToken');
+        const baseUrl = core.getInput('baseUrl');
+        const githubToken = core.getInput('githubToken');
+        // https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
+        // https://github.com/actions/toolkit
+        // https://github.com/octokit/plugin-throttling.js/issues/127
+        // https://gist.github.com/slavafomin/cd7a54035eff5dc1c7c2eff096b23b6b
+        // https://github.com/actions/toolkit/issues/1555
+        // https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+        // https://www.typescriptlang.org/docs/handbook/modules/reference.html#packagejson-exports
+        // https://docs.github.com/en/actions/security-guides/automatic-token-authentication
+        // https://github.com/octokit/auth-action.js/?tab=readme-ov-file
+        // https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow
+        //core.getInput("github")
+        const token = core.getInput('GITHUB_TOKEN');
+        const context = github.context;
+        log(`
+            token: ${token}
+            githubToken: ${githubToken}
+            workflow: ${github.context.workflow}
+            repo: ${github.context.repo.repo}
+            runId: ${github.context.runId}
+        `);
+        // const MyOctokit = Octokit.plugin<Octokit & Constructor<Api>>(restEndpointMethods);
+        // const m = new MyOctokit({})
+        // const octokit = github.getOctokit<Octokit & Api>(githubToken, undefined, restEndpointMethods)
+        const octokit = github.getOctokit(githubToken);
+        // const api: Api = github.getOctokit<Api>(githubToken, undefined, plugin.restEndpointMethods)
+        const workflows = await octokit.rest.actions.listRepoWorkflows({
+            ...context.repo
+        });
+        const workflow = workflows.data.workflows.find((workflow) => workflow.name === context.workflow);
+        log(`workflows: ${JSON.stringify(workflows.data.workflows)}`);
+        log(`found workflow: ${JSON.stringify(workflow)}`);
+        octokit.rest.actions.listWorkflowRuns({
+            ...context.repo,
+            workflow_id: workflow.id
+        });
+        // log(`runs count: ${response.data}`)
+        /*
+            const response: GetWorkflowRunsResponse = await octokit.request('GET /repos/{owner}/{repo}/actions/runs', {
+                ...context
+            })
+            */
+        client_1.OpenAPI.BASE = baseUrl;
+        client_1.OpenAPI.TOKEN = apiToken;
+        // github.context.
+        const apps = await client_1.ApplicationService.getApplications({ expand: false });
+        core.setOutput('status', 'Success');
+        log(`apps count: ${apps.length}`);
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            core.setFailed(error.message);
+        }
+    }
+}
+
+
+/***/ }),
+
 /***/ 9491:
 /***/ ((module) => {
 
@@ -31070,17 +34010,6 @@ module.exports = parseParams
 /******/ 	}
 /******/ 	
 /************************************************************************/
-/******/ 	/* webpack/runtime/make namespace object */
-/******/ 	(() => {
-/******/ 		// define __esModule on exports
-/******/ 		__nccwpck_require__.r = (exports) => {
-/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
-/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-/******/ 			}
-/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
-/******/ 		};
-/******/ 	})();
-/******/ 	
 /******/ 	/* webpack/runtime/compat */
 /******/ 	
 /******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";
@@ -31090,2807 +34019,11 @@ var __webpack_exports__ = {};
 // This entry need to be wrapped in an IIFE because it need to be in strict mode.
 (() => {
 "use strict";
-// ESM COMPAT FLAG
-__nccwpck_require__.r(__webpack_exports__);
+var exports = __webpack_exports__;
 
-// EXTERNAL MODULE: ./node_modules/@actions/core/lib/core.js
-var core = __nccwpck_require__(2186);
-// EXTERNAL MODULE: ./node_modules/@actions/github/lib/github.js
-var github = __nccwpck_require__(5438);
-;// CONCATENATED MODULE: ./src/client/core/ApiError.ts
-class ApiError extends Error {
-    url;
-    status;
-    statusText;
-    body;
-    request;
-    constructor(request, response, message) {
-        super(message);
-        this.name = 'ApiError';
-        this.url = response.url;
-        this.status = response.status;
-        this.statusText = response.statusText;
-        this.body = response.body;
-        this.request = request;
-    }
-}
-
-;// CONCATENATED MODULE: ./src/client/core/CancelablePromise.ts
-class CancelError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = 'CancelError';
-    }
-    get isCancelled() {
-        return true;
-    }
-}
-class CancelablePromise {
-    _isResolved;
-    _isRejected;
-    _isCancelled;
-    cancelHandlers;
-    promise;
-    _resolve;
-    _reject;
-    constructor(executor) {
-        this._isResolved = false;
-        this._isRejected = false;
-        this._isCancelled = false;
-        this.cancelHandlers = [];
-        this.promise = new Promise((resolve, reject) => {
-            this._resolve = resolve;
-            this._reject = reject;
-            const onResolve = (value) => {
-                if (this._isResolved || this._isRejected || this._isCancelled) {
-                    return;
-                }
-                this._isResolved = true;
-                if (this._resolve)
-                    this._resolve(value);
-            };
-            const onReject = (reason) => {
-                if (this._isResolved || this._isRejected || this._isCancelled) {
-                    return;
-                }
-                this._isRejected = true;
-                if (this._reject)
-                    this._reject(reason);
-            };
-            const onCancel = (cancelHandler) => {
-                if (this._isResolved || this._isRejected || this._isCancelled) {
-                    return;
-                }
-                this.cancelHandlers.push(cancelHandler);
-            };
-            Object.defineProperty(onCancel, 'isResolved', {
-                get: () => this._isResolved,
-            });
-            Object.defineProperty(onCancel, 'isRejected', {
-                get: () => this._isRejected,
-            });
-            Object.defineProperty(onCancel, 'isCancelled', {
-                get: () => this._isCancelled,
-            });
-            return executor(onResolve, onReject, onCancel);
-        });
-    }
-    get [Symbol.toStringTag]() {
-        return "Cancellable Promise";
-    }
-    then(onFulfilled, onRejected) {
-        return this.promise.then(onFulfilled, onRejected);
-    }
-    catch(onRejected) {
-        return this.promise.catch(onRejected);
-    }
-    finally(onFinally) {
-        return this.promise.finally(onFinally);
-    }
-    cancel() {
-        if (this._isResolved || this._isRejected || this._isCancelled) {
-            return;
-        }
-        this._isCancelled = true;
-        if (this.cancelHandlers.length) {
-            try {
-                for (const cancelHandler of this.cancelHandlers) {
-                    cancelHandler();
-                }
-            }
-            catch (error) {
-                console.warn('Cancellation threw an error', error);
-                return;
-            }
-        }
-        this.cancelHandlers.length = 0;
-        if (this._reject)
-            this._reject(new CancelError('Request aborted'));
-    }
-    get isCancelled() {
-        return this._isCancelled;
-    }
-}
-
-;// CONCATENATED MODULE: ./src/client/core/OpenAPI.ts
-class Interceptors {
-    _fns;
-    constructor() {
-        this._fns = [];
-    }
-    eject(fn) {
-        const index = this._fns.indexOf(fn);
-        if (index !== -1) {
-            this._fns = [...this._fns.slice(0, index), ...this._fns.slice(index + 1)];
-        }
-    }
-    use(fn) {
-        this._fns = [...this._fns, fn];
-    }
-}
-const OpenAPI_OpenAPI = {
-    BASE: 'https://jira.dev.apwide.com/rest/apwide/tem/1.1',
-    CREDENTIALS: 'include',
-    ENCODE_PATH: undefined,
-    HEADERS: undefined,
-    PASSWORD: undefined,
-    TOKEN: undefined,
-    USERNAME: undefined,
-    VERSION: '1.1',
-    WITH_CREDENTIALS: false,
-    interceptors: {
-        request: new Interceptors(),
-        response: new Interceptors(),
-    },
-};
-
-;// CONCATENATED MODULE: ./src/client/schemas.gen.ts
-// This file is auto-generated by @hey-api/openapi-ts
-const $ErrorCollection = {
-    type: 'object',
-    properties: {
-        errorMessages: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        },
-        errors: {
-            type: 'object',
-            additionalProperties: {
-                type: 'string'
-            }
-        },
-        status: {
-            type: 'integer',
-            format: 'int32'
-        }
-    }
-};
-const $ApplicationRequest = {
-    type: 'object',
-    required: ['name'],
-    properties: {
-        name: {
-            type: 'string',
-            example: 'eCommerce'
-        },
-        versionPrefix: {
-            type: 'string',
-            example: 'ECOM'
-        },
-        mappedProjectId: {
-            type: 'integer',
-            format: 'int64',
-            example: 10
-        },
-        createNewVersion: {
-            type: 'boolean'
-        },
-        deploymentConfiguration: {
-            '$ref': '#/components/schemas/DeploymentConfiguration'
-        },
-        deploymentAttributes: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/Attribute'
-            }
-        },
-        tierType: {
-            '$ref': '#/components/schemas/TierType'
-        },
-        parents: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        tiers: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        incomingDependencies: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        outgoingDependencies: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        }
-    }
-};
-const $ApplicationResponse = {
-    type: 'object',
-    required: ['id', 'name'],
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1
-        },
-        name: {
-            type: 'string',
-            example: 'eCommerce'
-        },
-        versionPrefix: {
-            type: 'string',
-            example: 'ECOM'
-        },
-        mappedProjectId: {
-            type: 'integer',
-            format: 'int64',
-            example: 10
-        },
-        createNewVersion: {
-            type: 'boolean'
-        },
-        deploymentConfiguration: {
-            '$ref': '#/components/schemas/DeploymentConfiguration'
-        },
-        deploymentAttributes: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/Attribute'
-            }
-        },
-        tierType: {
-            '$ref': '#/components/schemas/TierType'
-        },
-        parents: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        tiers: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        incomingDependencies: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        outgoingDependencies: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        }
-    }
-};
-const $TierType = {
-    type: 'string',
-    example: 'STANDALONE',
-    enum: ['STANDALONE', 'TIER']
-};
-const $Attribute = {
-    type: 'object',
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32'
-        },
-        key: {
-            type: 'string'
-        },
-        type: {
-            type: 'string'
-        },
-        secured: {
-            type: 'boolean'
-        },
-        createdBy: {
-            type: 'string'
-        },
-        createdOn: {
-            type: 'integer',
-            'x-apw-epoch-date': true
-        },
-        modifiedBy: {
-            type: 'string'
-        },
-        modifiedOn: {
-            type: 'integer',
-            'x-apw-epoch-date': true
-        }
-    }
-};
-const $AttributeValue = {
-    type: 'object',
-    example: '{ "Owner": "John" }',
-    properties: {
-        name: {
-            type: 'string'
-        },
-        value: {
-            type: 'string'
-        }
-    }
-};
-const $DeploymentResponse = {
-    type: 'object',
-    required: ['applicationId', 'applicationName', 'categoryId', 'categoryName', 'deployedTime', 'deployer', 'deploymentId', 'environmentId', 'id'],
-    properties: {
-        deploymentId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        environmentId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        versionName: {
-            type: 'string',
-            example: 'ECOM 1.2.4'
-        },
-        versionId: {
-            type: 'string',
-            example: '101002'
-        },
-        deployer: {
-            type: 'string',
-            example: 'admin',
-            readOnly: true
-        },
-        deployedTime: {
-            type: 'integer',
-            'x-apw-epoch-date': true,
-            example: 1522011409588,
-            readOnly: true
-        },
-        categoryId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        categoryName: {
-            type: 'string',
-            example: 'Staging',
-            readOnly: true
-        },
-        applicationId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        applicationName: {
-            type: 'string',
-            example: 'eCommerce',
-            readOnly: true
-        },
-        endTime: {
-            type: 'integer',
-            'x-apw-epoch-date': true,
-            example: 1522011417783,
-            readOnly: true
-        },
-        duration: {
-            type: 'integer',
-            format: 'int64',
-            example: 8195,
-            readOnly: true
-        },
-        buildNumber: {
-            type: 'string',
-            example: '2839948'
-        },
-        description: {
-            type: 'string',
-            example: 'Release candidate for Summer 2020'
-        },
-        orderedAttributes: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/AttributeValue'
-            }
-        },
-        issueKeys: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        },
-        attributes: {
-            additionalProperties: {
-                type: 'string'
-            }
-        }
-    }
-};
-const $DeploymentRequest = {
-    type: 'object',
-    required: ['applicationId', 'applicationName', 'categoryId', 'categoryName', 'deployedTime', 'deployer', 'deploymentId', 'environmentId', 'id'],
-    properties: {
-        deploymentId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        versionName: {
-            type: 'string',
-            example: 'ECOM 1.2.4'
-        },
-        versionId: {
-            type: 'string',
-            example: '101002'
-        },
-        buildNumber: {
-            type: 'string',
-            example: '2839948'
-        },
-        description: {
-            type: 'string',
-            example: 'Release candidate for Summer 2020'
-        },
-        issueKeys: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        },
-        attributes: {
-            additionalProperties: {
-                type: 'string'
-            }
-        }
-    }
-};
-const $DeploymentConfiguration = {
-    type: 'object',
-    properties: {
-        showBuildNumber: {
-            type: 'boolean'
-        },
-        showDescription: {
-            type: 'boolean'
-        },
-        preventDeploymentMerge: {
-            type: 'boolean'
-        },
-        readonlyDeployedIssues: {
-            type: 'boolean'
-        }
-    }
-};
-const $NamedReference = {
-    type: 'object',
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32'
-        },
-        name: {
-            type: 'string'
-        }
-    }
-};
-const $CreatableNamedReference = {
-    type: 'object',
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32'
-        },
-        name: {
-            type: 'string'
-        },
-        autoCreate: {
-            type: 'boolean',
-            description: 'should we create reference if not existing'
-        }
-    }
-};
-const $EnvironmentCategory = {
-    type: 'object',
-    required: ['id', 'name'],
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1
-        },
-        name: {
-            type: 'string',
-            example: 'Staging'
-        },
-        order: {
-            type: 'integer',
-            format: 'int32',
-            example: 10
-        },
-        type: {
-            '$ref': '#/components/schemas/EnvironmentCategoryType'
-        }
-    }
-};
-const $EnvironmentCategoryType = {
-    type: 'string',
-    example: 'STAGING',
-    enum: ['DEVELOPMENT', 'TESTING', 'STAGING', 'PRODUCTION']
-};
-const $EnvironmentStatus = {
-    type: 'object',
-    required: ['id', 'name'],
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1
-        },
-        name: {
-            type: 'string',
-            example: 'Available'
-        },
-        description: {
-            type: 'string',
-            example: 'Environment is available'
-        },
-        color: {
-            type: 'string',
-            example: 'GREEN'
-        },
-        order: {
-            type: 'integer',
-            format: 'int32',
-            example: 10
-        }
-    }
-};
-const $ScopedStatusChangeRequest = {
-    type: 'object',
-    properties: {
-        scope: {
-            '$ref': '#/components/schemas/EnvironmentsScope'
-        },
-        status: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        ignoredStatuses: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        statusMapping: {
-            type: 'object',
-            additionalProperties: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        }
-    }
-};
-const $EnvironmentStatusChangeRequest = {
-    type: 'object',
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1
-        },
-        name: {
-            type: 'string',
-            example: 'Available'
-        }
-    },
-    xml: {
-        name: 'statusChangeRequest'
-    }
-};
-const $StatusChange = {
-    type: 'object',
-    required: ['applicationId', 'applicationName', 'categoryId', 'categoryName', 'changedBy', 'changedOn', 'id', 'statusName'],
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        categoryId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        categoryName: {
-            type: 'string',
-            example: 'Staging',
-            readOnly: true
-        },
-        applicationId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        applicationName: {
-            type: 'string',
-            example: 'eCommerce',
-            readOnly: true
-        },
-        statusName: {
-            type: 'string',
-            example: 'Available',
-            readOnly: true
-        },
-        status: {
-            '$ref': '#/components/schemas/EnvironmentStatus'
-        },
-        changedBy: {
-            type: 'string',
-            example: 'admin',
-            readOnly: true
-        },
-        changedOn: {
-            type: 'integer',
-            format: 'int64',
-            'x-apw-epoch-date': true,
-            example: 1522097356939,
-            readOnly: true
-        },
-        endTime: {
-            type: 'integer',
-            format: 'int64',
-            'x-apw-epoch-date': true,
-            example: 1522097356910,
-            description: 'endTime is not defined if status is the current one',
-            readOnly: true
-        },
-        duration: {
-            type: 'integer',
-            format: 'int64',
-            example: 3600000,
-            description: 'duration in ms. Only present if endTime is set',
-            readOnly: true
-        }
-    },
-    xml: {
-        name: 'change-status'
-    }
-};
-const $StatusChangeResult = {
-    type: 'object',
-    properties: {
-        errors: {
-            '$ref': '#/components/schemas/ErrorCollection'
-        },
-        type: {
-            '$ref': '#/components/schemas/StatusChangeResultType'
-        },
-        previousStatus: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        currentStatus: {
-            '$ref': '#/components/schemas/NamedReference'
-        }
-    }
-};
-const $StatusChangeResultType = {
-    type: 'string',
-    enum: ['IGNORED', 'CHANGED', 'FAILED', 'NOT_MODIFIED']
-};
-const $StatusChangesResponse = {
-    type: 'object',
-    properties: {
-        requestedStatus: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        environments: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/EnvironmentStatusChange'
-            }
-        }
-    }
-};
-const $EnvironmentStatusChange = {
-    type: 'object',
-    properties: {
-        environment: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        result: {
-            '$ref': '#/components/schemas/StatusChangeResult'
-        }
-    }
-};
-const $EnvironmentsScope = {
-    type: 'object',
-    properties: {
-        criteria: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/EnvironmentSearchCriterion'
-            }
-        }
-    }
-};
-const $IssueDeployedRequest = {
-    type: 'object',
-    properties: {
-        issueKey: {
-            type: 'string'
-        },
-        scope: {
-            '$ref': '#/components/schemas/EnvironmentsScope'
-        },
-        buildNumber: {
-            type: 'string'
-        },
-        versionName: {
-            type: 'string'
-        },
-        noEmailNotification: {
-            type: 'boolean'
-        }
-    }
-};
-const $EnvironmentSearchCriterion = {
-    type: 'object',
-    properties: {
-        name: {
-            type: 'string'
-        },
-        values: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        }
-    }
-};
-const $EnvironmentPermissionScheme = {
-    type: 'object',
-    required: ['description', 'global', 'id', 'name', 'roles'],
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1
-        },
-        name: {
-            type: 'string',
-            example: 'Default Environment Permission Scheme'
-        },
-        description: {
-            type: 'string',
-            example: 'Default Environment Permission Scheme'
-        },
-        roles: {
-            type: 'array',
-            example: "['Admin', 'Anonymous', 'Mosaic Team Members']",
-            items: {
-                type: 'string'
-            }
-        },
-        global: {
-            type: 'boolean',
-            readOnly: true
-        }
-    }
-};
-const $EnvironmentRequest = {
-    type: 'object',
-    required: ['application', 'category', 'name'],
-    properties: {
-        application: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        category: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        name: {
-            type: 'string'
-        },
-        description: {
-            type: 'string'
-        },
-        environmentPermissionScheme: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        url: {
-            type: 'string',
-            example: 'https://ecom-staging-my-company.com/welcome'
-        },
-        parent: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        tiers: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        incomingDependencies: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        outgoingDependencies: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        attributes: {
-            type: 'object',
-            additionalProperties: {
-                type: 'string'
-            }
-        },
-        attributesToDelete: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        }
-    }
-};
-const $EnvironmentResponse = {
-    type: 'object',
-    required: ['application', 'category', 'name'],
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        application: {
-            '$ref': '#/components/schemas/ApplicationResponse'
-        },
-        category: {
-            '$ref': '#/components/schemas/EnvironmentCategory'
-        },
-        name: {
-            type: 'string'
-        },
-        description: {
-            type: 'string'
-        },
-        environmentPermissionScheme: {
-            '$ref': '#/components/schemas/EnvironmentPermissionScheme'
-        },
-        status: {
-            '$ref': '#/components/schemas/EnvironmentStatus'
-        },
-        url: {
-            type: 'string',
-            example: 'https://ecom-staging-my-company.com/welcome'
-        },
-        deployment: {
-            '$ref': '#/components/schemas/DeploymentResponse'
-        },
-        watched: {
-            type: 'boolean',
-            example: true,
-            readOnly: true
-        },
-        parent: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        tiers: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        incomingDependencies: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        outgoingDependencies: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/NamedReference'
-            }
-        },
-        attributes: {
-            type: 'object',
-            additionalProperties: {
-                type: 'string'
-            }
-        }
-    }
-};
-const $EnvironmentFilter = {
-    type: 'object',
-    properties: {
-        criteria: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/EnvironmentSearchCriterion'
-            }
-        },
-        sortOrder: {
-            type: 'string'
-        },
-        sortBy: {
-            type: 'string'
-        },
-        limit: {
-            type: 'integer',
-            format: 'int32'
-        },
-        offset: {
-            type: 'integer',
-            format: 'int32'
-        },
-        expand: {
-            type: 'boolean'
-        }
-    }
-};
-const $PaginatedEnvironmentResponse = {
-    type: 'object',
-    required: ['count', 'offset'],
-    properties: {
-        count: {
-            type: 'integer',
-            format: 'int64'
-        },
-        limit: {
-            type: 'integer',
-            format: 'int32'
-        },
-        offset: {
-            type: 'integer',
-            format: 'int64'
-        },
-        environments: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/EnvironmentResponse'
-            }
-        }
-    }
-};
-const $EnvironmentReference = {
-    type: 'object',
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32'
-        },
-        name: {
-            type: 'string'
-        },
-        application: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        category: {
-            '$ref': '#/components/schemas/NamedReference'
-        }
-    }
-};
-const $EnvironmentReferenceResponse = {
-    type: 'object',
-    properties: {
-        items: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/EnvironmentReference'
-            }
-        }
-    }
-};
-const $CloneEnvironmentOverride = {
-    type: 'object',
-    properties: {
-        name: {
-            type: 'string'
-        }
-    }
-};
-const $CloneEnvironmentRequest = {
-    type: 'object',
-    properties: {
-        from: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        failIfNameExists: {
-            type: 'boolean'
-        },
-        includeTiers: {
-            type: 'boolean'
-        },
-        override: {
-            '$ref': '#/components/schemas/CloneEnvironmentOverride'
-        }
-    }
-};
-const $OptionReferenceResource = {
-    type: 'object',
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int64'
-        },
-        name: {
-            type: 'string'
-        }
-    }
-};
-const $OptionReferenceResourceResponse = {
-    type: 'object',
-    properties: {
-        items: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/OptionReferenceResource'
-            }
-        }
-    }
-};
-const $WatcherStatistics = {
-    type: 'object',
-    properties: {
-        dumb: {
-            type: 'string'
-        }
-    }
-};
-const $EnvironmentWatcher = {
-    type: 'object',
-    required: ['environmentId', 'watchDeployedVersion', 'watchEnvironmentChanged', 'watchIssueAdded', 'watchIssueRemoved', 'watchStatus'],
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        userKey: {
-            type: 'string'
-        },
-        userName: {
-            type: 'string',
-            example: 'admin'
-        },
-        environmentId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1
-        },
-        watchEnvironmentChanged: {
-            type: 'boolean',
-            example: true
-        },
-        watchDeployedVersion: {
-            type: 'boolean',
-            example: true
-        },
-        watchStatus: {
-            type: 'boolean',
-            example: true
-        },
-        watchIssueAdded: {
-            type: 'boolean',
-            example: true
-        },
-        watchIssueRemoved: {
-            type: 'boolean',
-            example: true
-        }
-    }
-};
-const $VersionInfoRequest = {
-    type: 'object',
-    required: ['versionName'],
-    properties: {
-        application: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        versionName: {
-            type: 'string',
-            example: 'ECOM-2.1'
-        },
-        versionDescription: {
-            type: 'string'
-        },
-        startDate: {
-            type: 'string',
-            description: 'ISO-8601 date time format',
-            example: '2023-08-12T12:00:00Z'
-        },
-        releaseDate: {
-            type: 'string',
-            description: 'ISO-8601 date time format',
-            example: '2023-09-24T16:00:00Z'
-        },
-        released: {
-            type: 'boolean'
-        },
-        issues: {
-            '$ref': '#/components/schemas/VersionIssues'
-        }
-    }
-};
-const $EnvironmentInfoRequest = {
-    type: 'object',
-    required: ['environment'],
-    properties: {
-        environmentSelector: {
-            '$ref': '#/components/schemas/EnvironmentInfoSelector'
-        },
-        deployment: {
-            '$ref': '#/components/schemas/DeploymentInfo'
-        },
-        environment: {
-            '$ref': '#/components/schemas/EnvironmentInfo'
-        },
-        status: {
-            '$ref': '#/components/schemas/NamedReference'
-        }
-    }
-};
-const $DeploymentInfo = {
-    type: 'object',
-    properties: {
-        versionName: {
-            type: 'string',
-            example: 'ECOM 1.2.4'
-        },
-        deployedDate: {
-            type: 'string',
-            description: 'ISO-8601 date time format',
-            example: '2023-09-24T16:00:00Z'
-        },
-        versionId: {
-            type: 'string',
-            example: '101002'
-        },
-        buildNumber: {
-            type: 'string',
-            example: '2839948'
-        },
-        description: {
-            type: 'string',
-            example: 'Release candidate for Summer 2020'
-        },
-        attributes: {
-            additionalProperties: {
-                type: 'string'
-            }
-        },
-        issues: {
-            '$ref': '#/components/schemas/DeployedIssues'
-        }
-    }
-};
-const $EnvironmentInfoSelector = {
-    type: 'object',
-    properties: {
-        environment: {
-            '$ref': '#/components/schemas/CreatableNamedReference'
-        },
-        application: {
-            '$ref': '#/components/schemas/CreatableNamedReference'
-        },
-        category: {
-            '$ref': '#/components/schemas/CreatableNamedReference'
-        }
-    }
-};
-const $EnvironmentInfo = {
-    type: 'object',
-    properties: {
-        name: {
-            type: 'string'
-        },
-        url: {
-            type: 'string'
-        },
-        attributes: {
-            additionalProperties: {
-                type: 'string'
-            }
-        }
-    }
-};
-const $EnvironmentInfoResponse = {
-    type: 'object',
-    required: ['environment'],
-    properties: {
-        environment: {
-            '$ref': '#/components/schemas/NamedReference'
-        },
-        deployment: {
-            '$ref': '#/components/schemas/DeploymentDetail'
-        },
-        status: {
-            '$ref': '#/components/schemas/NamedReference'
-        }
-    }
-};
-const $DeploymentDetail = {
-    type: 'object',
-    properties: {
-        id: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        environmentId: {
-            type: 'integer',
-            format: 'int32',
-            example: 1,
-            readOnly: true
-        },
-        versionName: {
-            type: 'string',
-            example: 'ECOM 1.2.4'
-        },
-        versionId: {
-            type: 'string',
-            example: '101002'
-        },
-        deployer: {
-            type: 'string',
-            example: 'admin',
-            readOnly: true
-        },
-        deployedOn: {
-            type: 'string',
-            description: 'ISO-8601 date time format',
-            example: '2023-09-24T16:00:00Z'
-        },
-        buildNumber: {
-            type: 'string',
-            example: '2839948'
-        },
-        description: {
-            type: 'string',
-            example: 'Release candidate for Summer 2020'
-        },
-        issueKeys: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        },
-        attributes: {
-            additionalProperties: {
-                type: 'string'
-            }
-        }
-    }
-};
-const $DefaultBoolean = {
-    type: 'string',
-    enum: ['yes', 'no', 'default']
-};
-const $DeployedIssues = {
-    type: 'object',
-    properties: {
-        addDoneIssuesFixedInVersion: {
-            type: 'boolean',
-            default: false
-        },
-        issueKeys: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        },
-        jql: {
-            type: 'string'
-        },
-        noFixVersionUpdate: {
-            type: 'boolean',
-            default: false
-        },
-        sendJiraNotification: {
-            type: 'boolean',
-            default: false
-        }
-    }
-};
-const $VersionIssues = {
-    type: 'object',
-    properties: {
-        issueKeys: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        },
-        jql: {
-            type: 'string'
-        },
-        sendJiraNotification: {
-            type: 'boolean',
-            default: false
-        }
-    }
-};
-const $VersionInfo = {
-    type: 'object',
-    required: ['versionId', 'versionName'],
-    properties: {
-        versionId: {
-            type: 'integer',
-            format: 'int64',
-            example: 10200
-        },
-        versionName: {
-            type: 'string',
-            example: 'ECOM-2.1'
-        },
-        versionDescription: {
-            type: 'string'
-        },
-        startDate: {
-            type: 'string',
-            example: '2023-08-12T12:00:00Z'
-        },
-        releaseDate: {
-            type: 'string',
-            example: '2023-09-24T16:00:00Z'
-        },
-        released: {
-            type: 'boolean'
-        },
-        fixedIssues: {
-            type: 'array',
-            items: {
-                type: 'string'
-            }
-        }
-    }
-};
-const $VersionInfoResponse = {
-    type: 'object',
-    required: ['versionId', 'versionName'],
-    properties: {
-        versions: {
-            type: 'array',
-            items: {
-                '$ref': '#/components/schemas/VersionInfo'
-            },
-            format: 'int64',
-            example: 10200
-        }
-    }
-};
-
-;// CONCATENATED MODULE: ./src/client/core/request.ts
-
-
-const isString = (value) => {
-    return typeof value === 'string';
-};
-const isStringWithValue = (value) => {
-    return isString(value) && value !== '';
-};
-const isBlob = (value) => {
-    return value instanceof Blob;
-};
-const isFormData = (value) => {
-    return value instanceof FormData;
-};
-const base64 = (str) => {
-    try {
-        return btoa(str);
-    }
-    catch (err) {
-        // @ts-ignore
-        return Buffer.from(str).toString('base64');
-    }
-};
-const getQueryString = (params) => {
-    const qs = [];
-    const append = (key, value) => {
-        qs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-    };
-    const encodePair = (key, value) => {
-        if (value === undefined || value === null) {
-            return;
-        }
-        if (value instanceof Date) {
-            append(key, value.toISOString());
-        }
-        else if (Array.isArray(value)) {
-            value.forEach(v => encodePair(key, v));
-        }
-        else if (typeof value === 'object') {
-            Object.entries(value).forEach(([k, v]) => encodePair(`${key}[${k}]`, v));
-        }
-        else {
-            append(key, value);
-        }
-    };
-    Object.entries(params).forEach(([key, value]) => encodePair(key, value));
-    return qs.length ? `?${qs.join('&')}` : '';
-};
-const getUrl = (config, options) => {
-    const encoder = config.ENCODE_PATH || encodeURI;
-    const path = options.url
-        .replace('{api-version}', config.VERSION)
-        .replace(/{(.*?)}/g, (substring, group) => {
-        if (options.path?.hasOwnProperty(group)) {
-            return encoder(String(options.path[group]));
-        }
-        return substring;
-    });
-    const url = config.BASE + path;
-    return options.query ? url + getQueryString(options.query) : url;
-};
-const getFormData = (options) => {
-    if (options.formData) {
-        const formData = new FormData();
-        const process = (key, value) => {
-            if (isString(value) || isBlob(value)) {
-                formData.append(key, value);
-            }
-            else {
-                formData.append(key, JSON.stringify(value));
-            }
-        };
-        Object.entries(options.formData)
-            .filter(([, value]) => value !== undefined && value !== null)
-            .forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => process(key, v));
-            }
-            else {
-                process(key, value);
-            }
-        });
-        return formData;
-    }
-    return undefined;
-};
-const resolve = async (options, resolver) => {
-    if (typeof resolver === 'function') {
-        return resolver(options);
-    }
-    return resolver;
-};
-const getHeaders = async (config, options) => {
-    const [token, username, password, additionalHeaders] = await Promise.all([
-        // @ts-ignore
-        resolve(options, config.TOKEN),
-        // @ts-ignore
-        resolve(options, config.USERNAME),
-        // @ts-ignore
-        resolve(options, config.PASSWORD),
-        // @ts-ignore
-        resolve(options, config.HEADERS),
-    ]);
-    const headers = Object.entries({
-        Accept: 'application/json',
-        ...additionalHeaders,
-        ...options.headers,
-    })
-        .filter(([, value]) => value !== undefined && value !== null)
-        .reduce((headers, [key, value]) => ({
-        ...headers,
-        [key]: String(value),
-    }), {});
-    if (isStringWithValue(token)) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-    if (isStringWithValue(username) && isStringWithValue(password)) {
-        const credentials = base64(`${username}:${password}`);
-        headers['Authorization'] = `Basic ${credentials}`;
-    }
-    if (options.body !== undefined) {
-        if (options.mediaType) {
-            headers['Content-Type'] = options.mediaType;
-        }
-        else if (isBlob(options.body)) {
-            headers['Content-Type'] = options.body.type || 'application/octet-stream';
-        }
-        else if (isString(options.body)) {
-            headers['Content-Type'] = 'text/plain';
-        }
-        else if (!isFormData(options.body)) {
-            headers['Content-Type'] = 'application/json';
-        }
-    }
-    return new Headers(headers);
-};
-const getRequestBody = (options) => {
-    if (options.body !== undefined) {
-        if (options.mediaType?.includes('application/json') || options.mediaType?.includes('+json')) {
-            return JSON.stringify(options.body);
-        }
-        else if (isString(options.body) || isBlob(options.body) || isFormData(options.body)) {
-            return options.body;
-        }
-        else {
-            return JSON.stringify(options.body);
-        }
-    }
-    return undefined;
-};
-const sendRequest = async (config, options, url, body, formData, headers, onCancel) => {
-    const controller = new AbortController();
-    let request = {
-        headers,
-        body: body ?? formData,
-        method: options.method,
-        signal: controller.signal,
-    };
-    if (config.WITH_CREDENTIALS) {
-        request.credentials = config.CREDENTIALS;
-    }
-    for (const fn of config.interceptors.request._fns) {
-        request = await fn(request);
-    }
-    onCancel(() => controller.abort());
-    return await fetch(url, request);
-};
-const getResponseHeader = (response, responseHeader) => {
-    if (responseHeader) {
-        const content = response.headers.get(responseHeader);
-        if (isString(content)) {
-            return content;
-        }
-    }
-    return undefined;
-};
-const getResponseBody = async (response) => {
-    if (response.status !== 204) {
-        try {
-            const contentType = response.headers.get('Content-Type');
-            if (contentType) {
-                const binaryTypes = ['application/octet-stream', 'application/pdf', 'application/zip', 'audio/', 'image/', 'video/'];
-                if (contentType.includes('application/json') || contentType.includes('+json')) {
-                    return await response.json();
-                }
-                else if (binaryTypes.some(type => contentType.includes(type))) {
-                    return await response.blob();
-                }
-                else if (contentType.includes('multipart/form-data')) {
-                    return await response.formData();
-                }
-                else if (contentType.includes('text/')) {
-                    return await response.text();
-                }
-            }
-        }
-        catch (error) {
-            console.error(error);
-        }
-    }
-    return undefined;
-};
-const catchErrorCodes = (options, result) => {
-    const errors = {
-        400: 'Bad Request',
-        401: 'Unauthorized',
-        402: 'Payment Required',
-        403: 'Forbidden',
-        404: 'Not Found',
-        405: 'Method Not Allowed',
-        406: 'Not Acceptable',
-        407: 'Proxy Authentication Required',
-        408: 'Request Timeout',
-        409: 'Conflict',
-        410: 'Gone',
-        411: 'Length Required',
-        412: 'Precondition Failed',
-        413: 'Payload Too Large',
-        414: 'URI Too Long',
-        415: 'Unsupported Media Type',
-        416: 'Range Not Satisfiable',
-        417: 'Expectation Failed',
-        418: 'Im a teapot',
-        421: 'Misdirected Request',
-        422: 'Unprocessable Content',
-        423: 'Locked',
-        424: 'Failed Dependency',
-        425: 'Too Early',
-        426: 'Upgrade Required',
-        428: 'Precondition Required',
-        429: 'Too Many Requests',
-        431: 'Request Header Fields Too Large',
-        451: 'Unavailable For Legal Reasons',
-        500: 'Internal Server Error',
-        501: 'Not Implemented',
-        502: 'Bad Gateway',
-        503: 'Service Unavailable',
-        504: 'Gateway Timeout',
-        505: 'HTTP Version Not Supported',
-        506: 'Variant Also Negotiates',
-        507: 'Insufficient Storage',
-        508: 'Loop Detected',
-        510: 'Not Extended',
-        511: 'Network Authentication Required',
-        ...options.errors,
-    };
-    const error = errors[result.status];
-    if (error) {
-        throw new ApiError(options, result, error);
-    }
-    if (!result.ok) {
-        const errorStatus = result.status ?? 'unknown';
-        const errorStatusText = result.statusText ?? 'unknown';
-        const errorBody = (() => {
-            try {
-                return JSON.stringify(result.body, null, 2);
-            }
-            catch (e) {
-                return undefined;
-            }
-        })();
-        throw new ApiError(options, result, `Generic Error: status: ${errorStatus}; status text: ${errorStatusText}; body: ${errorBody}`);
-    }
-};
-/**
- * Request method
- * @param config The OpenAPI configuration object
- * @param options The request options from the service
- * @returns CancelablePromise<T>
- * @throws ApiError
- */
-const request = (config, options) => {
-    return new CancelablePromise(async (resolve, reject, onCancel) => {
-        try {
-            const url = getUrl(config, options);
-            const formData = getFormData(options);
-            const body = getRequestBody(options);
-            const headers = await getHeaders(config, options);
-            if (!onCancel.isCancelled) {
-                let response = await sendRequest(config, options, url, body, formData, headers, onCancel);
-                for (const fn of config.interceptors.response._fns) {
-                    response = await fn(response);
-                }
-                const responseBody = await getResponseBody(response);
-                const responseHeader = getResponseHeader(response, options.responseHeader);
-                let transformedBody = responseBody;
-                if (options.responseTransformer && response.ok) {
-                    transformedBody = options.responseTransformer(responseBody);
-                }
-                const result = {
-                    url,
-                    ok: response.ok,
-                    status: response.status,
-                    statusText: response.statusText,
-                    body: responseHeader ?? transformedBody,
-                };
-                catchErrorCodes(options, result);
-                resolve(result.body);
-            }
-        }
-        catch (error) {
-            reject(error);
-        }
-    });
-};
-
-;// CONCATENATED MODULE: ./src/client/services.gen.ts
-// This file is auto-generated by @hey-api/openapi-ts
-
-
-class ApplicationService {
-    /**
-     * Create a new application
-     * @param data The data for the request.
-     * @param data.requestBody An application request
-     * @returns ApplicationResponse successful operation
-     * @throws ApiError
-     */
-    static postApplication(data) {
-        return request(OpenAPI_OpenAPI, {
-            method: 'POST',
-            url: '/application',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.'
-            }
-        });
-    }
-    /**
-     * Get an application
-     * @param data The data for the request.
-     * @param data.id
-     * @returns ApplicationResponse successful operation
-     * @throws ApiError
-     */
-    static getApplicationById(data) {
-        return request(OpenAPI_OpenAPI, {
-            method: 'GET',
-            url: '/application/{id}',
-            path: {
-                id: data.id
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Update an application
-     * # Updating an application
-     * Updating an application can be done in patch style mode. For example:
-     * * select an id
-     * * provide the id in the URL
-     * * call the method
-     * @param data The data for the request.
-     * @param data.id
-     * @param data.requestBody An application request
-     * @returns ApplicationResponse successful operation
-     * @throws ApiError
-     */
-    static putApplicationById(data) {
-        return request(OpenAPI_OpenAPI, {
-            method: 'PUT',
-            url: '/application/{id}',
-            path: {
-                id: data.id
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.',
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Delete an application
-     * @param data The data for the request.
-     * @param data.id
-     * @returns unknown successful operation
-     * @throws ApiError
-     */
-    static deleteApplicationById(data) {
-        return request(OpenAPI_OpenAPI, {
-            method: 'DELETE',
-            url: '/application/{id}',
-            path: {
-                id: data.id
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Find applications
-     * @param data The data for the request.
-     * @param data.expand Set it to false for lighter JSON
-     * @returns ApplicationResponse successful operation
-     * @throws ApiError
-     */
-    static getApplications(data = {}) {
-        return request(OpenAPI_OpenAPI, {
-            method: 'GET',
-            url: '/applications',
-            query: {
-                _expand: data.expand
-            }
-        });
-    }
-}
-class CategoryService {
-    /**
-     * Create new category
-     * @param data The data for the request.
-     * @param data.requestBody A category
-     * @returns EnvironmentCategory successful operation
-     * @throws ApiError
-     */
-    static postCategory(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/category',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.'
-            }
-        });
-    }
-    /**
-     * Get category
-     * @param data The data for the request.
-     * @param data.id
-     * @returns EnvironmentCategory successful operation
-     * @throws ApiError
-     */
-    static getCategoryById(data) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/category/{id}',
-            path: {
-                id: data.id
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Update category
-     * @param data The data for the request.
-     * @param data.id
-     * @param data.requestBody a category
-     * @returns EnvironmentCategory successful operation
-     * @throws ApiError
-     */
-    static putCategoryById(data) {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/category/{id}',
-            path: {
-                id: data.id
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.',
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Delete category
-     * @param data The data for the request.
-     * @param data.id
-     * @returns EnvironmentCategory successful operation
-     * @throws ApiError
-     */
-    static delete(data) {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/category/{id}',
-            path: {
-                id: data.id
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Get all categories
-     * @returns EnvironmentCategory successful operation
-     * @throws ApiError
-     */
-    static getCategories() {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/categories'
-        });
-    }
-}
-class EnvironmentStatusService {
-    /**
-     * Create new environment status
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns EnvironmentStatus successful operation
-     * @throws ApiError
-     */
-    static postStatus(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/status',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.'
-            }
-        });
-    }
-    /**
-     * Get environment status
-     * @param data The data for the request.
-     * @param data.id
-     * @returns EnvironmentStatus successful operation
-     * @throws ApiError
-     */
-    static getStatusById(data) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/status/{id}',
-            path: {
-                id: data.id
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Update an environment status
-     * @param data The data for the request.
-     * @param data.id
-     * @param data.requestBody
-     * @returns EnvironmentStatus successful operation
-     * @throws ApiError
-     */
-    static putStatusById(data) {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/status/{id}',
-            path: {
-                id: data.id
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.',
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Delete an environment status
-     * @param data The data for the request.
-     * @param data.id
-     * @returns unknown successful operation
-     * @throws ApiError
-     */
-    static deleteStatusById(data) {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/status/{id}',
-            path: {
-                id: data.id
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Get all existing Statuses
-     * @returns EnvironmentStatus successful operation
-     * @throws ApiError
-     */
-    static getStatuses() {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/statuses'
-        });
-    }
-}
-class DeploymentService {
-    /**
-     * Get the deployed version
-     * @param data The data for the request.
-     * @param data.environmentId Environment id. Ex: 1
-     * @param data.application Application name. Ex: eCommerce
-     * @param data.category Category name. Ex: Staging
-     * @param data.dateTime Date in the past. Ex: 2018-01-31 13:30 or in ms : 1537679702182
-     * @param data.time Absolute time in ms. Ex: 12300054 . Note that time must be in
-     * the past. Time will override dateTime param if both params are set.
-     *
-     * @returns DeploymentResponse successful operation
-     * @throws ApiError
-     */
-    static getDeployment(data = {}) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/deployment',
-            query: {
-                environmentId: data.environmentId,
-                application: data.application,
-                category: data.category,
-                dateTime: data.dateTime,
-                time: data.time
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Update the deployed version
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @param data.environmentId Environment id. Ex: 1
-     * @param data.application Application name. Ex: eCommerce
-     * @param data.category Category name. Ex: Staging
-     * @param data.dateTime Date in the past. Ex: 2018-01-31 13:30. Note that timezone of
-     * the server will be used to get the time! Prefer using the time parameter
-     * in ms to avoid timezone issues.
-     *
-     * @param data.time Absolute time in ms. Ex: 12300054 . Note that time must be in
-     * the past. Time will override dateTime param if both params are set.
-     *
-     * @returns DeploymentResponse successful operation
-     * @throws ApiError
-     */
-    static putDeployment(data) {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/deployment',
-            query: {
-                environmentId: data.environmentId,
-                application: data.application,
-                category: data.category,
-                dateTime: data.dateTime,
-                time: data.time
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.'
-            }
-        });
-    }
-    /**
-     * Get deployment
-     * @param data The data for the request.
-     * @param data.id
-     * @returns DeploymentResponse successful operation
-     * @throws ApiError
-     */
-    static getDeploymentById(data) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/deployment/{id}',
-            path: {
-                id: data.id
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Remove deployment
-     * @param data The data for the request.
-     * @param data.id
-     * @returns DeploymentResponse successful operation
-     * @throws ApiError
-     */
-    static deleteDeploymentById(data) {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/deployment/{id}',
-            path: {
-                id: data.id
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Search deployments
-     * @param data The data for the request.
-     * @param data.environmentId
-     * @param data.application
-     * @param data.category
-     * @param data.start Ex: 2018-01-31
-     * @param data.end Ex: 2018-02-25
-     * @param data.maxResults Unlimited number of results: -1
-     * @param data.expand Set it to false for lighter JSON
-     * @returns DeploymentResponse successful operation
-     * @throws ApiError
-     */
-    static getDeployments(data = {}) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/deployments',
-            query: {
-                environmentId: data.environmentId,
-                application: data.application,
-                category: data.category,
-                start: data.start,
-                end: data.end,
-                maxResults: data.maxResults,
-                expand: data.expand
-            }
-        });
-    }
-    /**
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns unknown successful operation
-     * @throws ApiError
-     */
-    static postDeploymentsIssue(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/deployments/issue',
-            body: data.requestBody,
-            mediaType: 'application/json'
-        });
-    }
-}
-class VersionService {
-    /**
-     * Create and Update Jira Versions
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns VersionInfoResponse successful operation
-     * @throws ApiError
-     */
-    static postVersion(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/version',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.'
-            }
-        });
-    }
-}
-class EnvironmentStatusChangeService {
-    /**
-     * Get current status of an environment
-     * @param data The data for the request.
-     * @param data.environmentId Environment id. Ex: 1
-     * @param data.application Application name. Ex: eCommerce
-     * @param data.category Category name. Ex: Staging
-     * @returns StatusChange successful operation
-     * @throws ApiError
-     */
-    static getStatusChange(data = {}) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/status-change',
-            query: {
-                environmentId: data.environmentId,
-                application: data.application,
-                category: data.category
-            },
-            errors: {
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Change status of an environment
-     * @param data The data for the request.
-     * @param data.requestBody Examples of valid json body:
-     * {"name":"Unavailable"}
-     * or
-     * {id": 1}
-     *
-     * @param data.environmentId Environment id. Ex: 1
-     * @param data.application Application name. Ex: eCommerce
-     * @param data.category Category name. Ex: Staging
-     * @returns StatusChange successful operation
-     * @throws ApiError
-     */
-    static putStatusChange(data) {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/status-change',
-            query: {
-                environmentId: data.environmentId,
-                application: data.application,
-                category: data.category
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.',
-                404: 'Resource has not been found.'
-            }
-        });
-    }
-    /**
-     * Search for status changes
-     * @param data The data for the request.
-     * @param data.environmentId Environment id. Ex: 1
-     * @param data.application Application name. Ex: eCommerce
-     * @param data.category Category name. Ex: Staging
-     * @param data.start Ex: 2018-01-31
-     * @param data.end Ex: 2019-01-31
-     * @param data.maxResult Unlimited number of results: -1
-     * @param data.expand Set it to false for lighter JSON
-     * @returns StatusChange successful operation
-     * @throws ApiError
-     */
-    static getStatusChanges(data = {}) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/status-changes',
-            query: {
-                environmentId: data.environmentId,
-                application: data.application,
-                category: data.category,
-                start: data.start,
-                end: data.end,
-                maxResult: data.maxResult,
-                expand: data.expand
-            }
-        });
-    }
-    /**
-     * Change status of environments matching criteria
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns StatusChangesResponse successful operation
-     * @throws ApiError
-     */
-    static postStatusChanges(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/status-changes',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.'
-            }
-        });
-    }
-    /**
-     * Change status of environments matching criteria
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns StatusChangesResponse successful operation
-     * @throws ApiError
-     */
-    static putStatusChanges(data) {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/status-changes',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.'
-            }
-        });
-    }
-}
-class EnvironmentService {
-    /**
-     * Get an environment by application and category
-     * @param data The data for the request.
-     * @param data.application Application name. Ex: eCommerce
-     * @param data.category Category name. Ex: Staging
-     * @returns EnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static getEnvironment(data) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/environment',
-            query: {
-                application: data.application,
-                category: data.category
-            }
-        });
-    }
-    /**
-     * Create a new environment
-     * @param data The data for the request.
-     * @param data.requestBody Example of realistic body: <pre><code>{
-     * "application": { "name": "eCommerce" },
-     * "category": { "name":"Staging" },
-     * "environmentPermissionScheme": { "id": 1 },
-     * "url": "https://ecom-staging-my-company.com/welcome",
-     * "attributes": {
-     * "OS": "RedHat 7",
-     * "database": "postgres",
-     * "location": "EU"
-     * }
-     * }</code></pre>
-     * @returns EnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static postEnvironment(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/environment',
-            body: data.requestBody,
-            mediaType: 'application/json'
-        });
-    }
-    /**
-     * Clone environment
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns EnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static postEnvironmentClone(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/environment/clone',
-            body: data.requestBody,
-            mediaType: 'application/json'
-        });
-    }
-    /**
-     * Get an environment by id
-     * @param data The data for the request.
-     * @param data.id
-     * @returns EnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static getEnvironmentById(data) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/environment/{id}',
-            path: {
-                id: data.id
-            }
-        });
-    }
-    /**
-     * Update an environment
-     * @param data The data for the request.
-     * @param data.id
-     * @param data.requestBody Example: set url and some attributes: <pre><code>{
-     * "url": "https://ecom-staging-my-company.com/welcome/NEWURL",
-     * "attributes": {
-     * "OS": "RedHat 8",
-     * "database": "mongo",
-     * "location": "US"
-     * }
-     * }</code></pre><br/>Example: change application and category: <pre><code>{
-     * "application": {
-     * "name": "Payment Service"
-     * },
-     * "category": {
-     * "name": "Demo"
-     * }
-     * }</code></pre>
-     * @returns EnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static putEnvironmentById(data) {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/environment/{id}',
-            path: {
-                id: data.id
-            },
-            body: data.requestBody,
-            mediaType: 'application/json'
-        });
-    }
-    /**
-     * Delete environment
-     * @param data The data for the request.
-     * @param data.id
-     * @returns EnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static deleteEnvironmentById(data) {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/environment/{id}',
-            path: {
-                id: data.id
-            }
-        });
-    }
-    /**
-     * Create and Push Environment Information
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns EnvironmentInfoResponse successful operation
-     * @throws ApiError
-     */
-    static postEnvironmentInformation(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/environment/information',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                400: 'Request was invalid, reason should be provided in response body.'
-            }
-        });
-    }
-    /**
-     * @deprecated
-     * Search environments by query parameters
-     * Combine any pre-defined <b>search parameters listed below</b>
-     * and pass them to url as query parameters. <br/><br/>Other parameters you can
-     * use:<br/>* parameters with no value to perform a <b>free text search</b> on
-     * all information of your environments (ex: <i>?Staging&eCommerce&RedHat</i>)<br/>*
-     * name of an <b>attribute as query parameter</b> (ex: <i>?OS=RedHat&database=Postgresql</i>)<br/><br/>Note
-     * that you can send the same parameter <b>multiple times</b> with different
-     * values (ex: <i>?applicationName=eCommerce&applicationName=PaymentService</i>).
-     * It will return environments matching at least one of the values'
-     *
-     * @param data The data for the request.
-     * @param data.applicationName Application name (ex: eCommerce)
-     * @param data.applicationId Application id (ex: 23)
-     * @param data.categoryName Category Name (ex: Staging)
-     * @param data.categoryId Category id (ex: 2)
-     * @param data.statusName Status Name (ex: Slow)
-     * @param data.statusId Status id (ex: 3)
-     * @param data.permissionSchemeName Permission scheme name (ex: Default Environment Permission Scheme)
-     * @param data.permissionSchemeId Permission scheme id (ex: 1)
-     * @param data.limit Max number of results (0 = unlimited)
-     * @param data.offset First result to return (ex: 10)
-     * @param data.sortOrder Sort order
-     * @param data.sortBy Sort by
-     * @param data.expand Set it to false for lighter JSON
-     * @returns EnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static getEnvironmentsSearch(data = {}) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/environments/search',
-            query: {
-                applicationName: data.applicationName,
-                applicationId: data.applicationId,
-                categoryName: data.categoryName,
-                categoryId: data.categoryId,
-                statusName: data.statusName,
-                statusId: data.statusId,
-                permissionSchemeName: data.permissionSchemeName,
-                permissionSchemeId: data.permissionSchemeId,
-                _limit: data.limit,
-                _offset: data.offset,
-                _sortOrder: data.sortOrder,
-                _sortBy: data.sortBy,
-                _expand: data.expand
-            }
-        });
-    }
-    /**
-     * @deprecated
-     * Search environments by search filter object
-     * You can use the same search criteria as the 'GET' version of <i>/environments/search</i>
-     * in a JSON object to trigger the search. <br/>Please refer to documentation
-     * of the 'GET' version of <i>/environments/search</i>  to get the list of available
-     * criteria.
-     *
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns EnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static postEnvironmentsSearch(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/environments/search',
-            body: data.requestBody,
-            mediaType: 'application/json'
-        });
-    }
-    /**
-     * Search environments by query parameters
-     * Combine any pre-defined <b>search parameters listed below</b>
-     * and pass them to url as query parameters. <br/><br/>Other parameters you can
-     * use:<br/>* parameters with no value to perform a <b>free text search</b> on
-     * all information of your environments (ex: <i>?Staging&eCommerce&RedHat</i>)<br/>*
-     * name of an <b>attribute as query parameter</b> (ex: <i>?OS=RedHat&database=Postgresql</i>)<br/><br/>Note
-     * that you can send the same parameter <b>multiple times</b> with different
-     * values (ex: <i>?applicationName=eCommerce&applicationName=PaymentService</i>).
-     * It will return environments matching at least one of the values
-     *
-     * @param data The data for the request.
-     * @param data.environmentId Environment id (ex: 23)
-     * @param data.environmentName Environment name (ex: eCommerce Dev 1)
-     * @param data.applicationName Application name (ex: eCommerce)
-     * @param data.applicationId Application id (ex: 23)
-     * @param data.categoryName Category Name (ex: Staging)
-     * @param data.categoryId Category id (ex: 2)
-     * @param data.statusName Status Name (ex: Slow)
-     * @param data.statusId Status id (ex: 3)
-     * @param data.permissionSchemeName Permission scheme name (ex: Default Environment Permission Scheme)
-     * @param data.permissionSchemeId Permission scheme id (ex: 1)
-     * @param data.panelSchemeId Panel scheme id (ex: 1)
-     * @param data.tierRelation Tier relation type (ex: HAS_TIERS, HAS_NO_TIERS, HAS_PARENT, IS_TIER, IS_ORPHAN)
-     * @param data.limit Max number of results (0 = unlimited)
-     * @param data.offset First result to return (ex: 10)
-     * @param data.sortOrder Sort order
-     * @param data.sortBy Sort by
-     * @param data.expand Set it to false for lighter JSON
-     * @returns PaginatedEnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static getEnvironmentsSearchPaginated(data = {}) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/environments/search/paginated',
-            query: {
-                environmentId: data.environmentId,
-                environmentName: data.environmentName,
-                applicationName: data.applicationName,
-                applicationId: data.applicationId,
-                categoryName: data.categoryName,
-                categoryId: data.categoryId,
-                statusName: data.statusName,
-                statusId: data.statusId,
-                permissionSchemeName: data.permissionSchemeName,
-                permissionSchemeId: data.permissionSchemeId,
-                panelSchemeId: data.panelSchemeId,
-                tierRelation: data.tierRelation,
-                _limit: data.limit,
-                _offset: data.offset,
-                _sortOrder: data.sortOrder,
-                _sortBy: data.sortBy,
-                _expand: data.expand
-            }
-        });
-    }
-    /**
-     * Search environments by search filter object
-     * You can use the same search criteria as the 'GET' version of <i>/environments/search/paginated</i>
-     * in a JSON object to trigger the search. <br/>Please refer to documentation
-     * of the 'GET' version of <i>/environments/search/paginated</i>  to get the
-     * list of available criteria.
-     *
-     * @param data The data for the request.
-     * @param data.requestBody search filter object
-     * @returns PaginatedEnvironmentResponse successful operation
-     * @throws ApiError
-     */
-    static postEnvironmentsSearchPaginated(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/environments/search/paginated',
-            body: data.requestBody,
-            mediaType: 'application/json'
-        });
-    }
-}
-class WatcherService {
-    /**
-     * Count number of watchers per environment
-     * @returns WatcherStatistics successful operation
-     * @throws ApiError
-     */
-    static getWatcherStatistics() {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/watcher/statistics'
-        });
-    }
-    /**
-     * Get environment watcher
-     * @param data The data for the request.
-     * @param data.environmentId
-     * @param data.userName
-     * @param data.userKey
-     * @returns EnvironmentWatcher successful operation
-     * @throws ApiError
-     */
-    static getWatcherUser(data) {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/watcher/user',
-            query: {
-                environmentId: data.environmentId,
-                userName: data.userName,
-                userKey: data.userKey
-            }
-        });
-    }
-    /**
-     * Create new environment watcher
-     * @param data The data for the request.
-     * @param data.environmentId
-     * @param data.requestBody
-     * @param data.userName
-     * @param data.userKey
-     * @returns EnvironmentWatcher successful operation
-     * @throws ApiError
-     */
-    static postWatcherUser(data) {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/watcher/user',
-            query: {
-                environmentId: data.environmentId,
-                userName: data.userName,
-                userKey: data.userKey
-            },
-            body: data.requestBody,
-            mediaType: 'application/json'
-        });
-    }
-    /**
-     * Update environment watcher
-     * @param data The data for the request.
-     * @param data.environmentId
-     * @param data.requestBody
-     * @param data.userName
-     * @param data.userKey
-     * @returns EnvironmentWatcher successful operation
-     * @throws ApiError
-     */
-    static putWatcherUser(data) {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/watcher/user',
-            query: {
-                environmentId: data.environmentId,
-                userName: data.userName,
-                userKey: data.userKey
-            },
-            body: data.requestBody,
-            mediaType: 'application/json'
-        });
-    }
-    /**
-     * Remove environment watcher
-     * @param data The data for the request.
-     * @param data.environmentId
-     * @param data.userName
-     * @param data.userKey
-     * @returns unknown successful operation
-     * @throws ApiError
-     */
-    static deleteWatcherUser(data) {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/watcher/user',
-            query: {
-                environmentId: data.environmentId,
-                userName: data.userName,
-                userKey: data.userKey
-            }
-        });
-    }
-}
-
-;// CONCATENATED MODULE: ./src/client/types.gen.ts
-// This file is auto-generated by @hey-api/openapi-ts
-var TierType;
-(function (TierType) {
-    TierType["STANDALONE"] = "STANDALONE";
-    TierType["TIER"] = "TIER";
-})(TierType || (TierType = {}));
-var EnvironmentCategoryType;
-(function (EnvironmentCategoryType) {
-    EnvironmentCategoryType["DEVELOPMENT"] = "DEVELOPMENT";
-    EnvironmentCategoryType["TESTING"] = "TESTING";
-    EnvironmentCategoryType["STAGING"] = "STAGING";
-    EnvironmentCategoryType["PRODUCTION"] = "PRODUCTION";
-})(EnvironmentCategoryType || (EnvironmentCategoryType = {}));
-var StatusChangeResultType;
-(function (StatusChangeResultType) {
-    StatusChangeResultType["IGNORED"] = "IGNORED";
-    StatusChangeResultType["CHANGED"] = "CHANGED";
-    StatusChangeResultType["FAILED"] = "FAILED";
-    StatusChangeResultType["NOT_MODIFIED"] = "NOT_MODIFIED";
-})(StatusChangeResultType || (StatusChangeResultType = {}));
-var DefaultBoolean;
-(function (DefaultBoolean) {
-    DefaultBoolean["YES"] = "yes";
-    DefaultBoolean["NO"] = "no";
-    DefaultBoolean["DEFAULT"] = "default";
-})(DefaultBoolean || (DefaultBoolean = {}));
-
-;// CONCATENATED MODULE: ./src/client/index.ts
-// This file is auto-generated by @hey-api/openapi-ts
-
-
-
-
-
-
-
-;// CONCATENATED MODULE: ./src/main.ts
-
-
-// https://www.typescriptlang.org/docs/handbook/modules/appendices/esm-cjs-interop.html
-
-function log(message) {
-    core.info(message);
-}
-async function run() {
-    try {
-        // const GoliveOctokit = Octokit.plugin(restEndpointMethods)
-        // const octokit = new GoliveOctokit()
-        const apiToken = core.getInput('apiToken');
-        const baseUrl = core.getInput('baseUrl');
-        const githubToken = core.getInput('githubToken');
-        // https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
-        // https://github.com/actions/toolkit
-        // https://github.com/octokit/plugin-throttling.js/issues/127
-        // https://gist.github.com/slavafomin/cd7a54035eff5dc1c7c2eff096b23b6b
-        // https://github.com/actions/toolkit/issues/1555
-        // https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
-        // https://www.typescriptlang.org/docs/handbook/modules/reference.html#packagejson-exports
-        // https://docs.github.com/en/actions/security-guides/automatic-token-authentication
-        // https://github.com/octokit/auth-action.js/?tab=readme-ov-file
-        // https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow
-        //core.getInput("github")
-        const token = core.getInput('GITHUB_TOKEN');
-        const context = github.context;
-        log(`
-            token: ${token}
-            githubToken: ${githubToken}
-            workflow: ${github.context.workflow}
-            repo: ${github.context.repo.repo}
-            runId: ${github.context.runId}
-        `);
-        // const MyOctokit = Octokit.plugin<Octokit & Constructor<Api>>(restEndpointMethods);
-        // const m = new MyOctokit({})
-        // const octokit = github.getOctokit<Octokit & Api>(githubToken, undefined, restEndpointMethods)
-        const octokit = github.getOctokit(githubToken);
-        // const api: Api = github.getOctokit<Api>(githubToken, undefined, plugin.restEndpointMethods)
-        const workflows = await octokit.rest.actions.listRepoWorkflows({
-            ...context.repo
-        });
-        const workflow = workflows.data.workflows.find((workflow) => workflow.name === context.workflow);
-        log(`workflows: ${JSON.stringify(workflows.data.workflows)}`);
-        log(`found workflow: ${JSON.stringify(workflow)}`);
-        octokit.rest.actions.listWorkflowRuns({
-            ...context.repo,
-            workflow_id: workflow.id
-        });
-        // log(`runs count: ${response.data}`)
-        /*
-            const response: GetWorkflowRunsResponse = await octokit.request('GET /repos/{owner}/{repo}/actions/runs', {
-                ...context
-            })
-            */
-        OpenAPI_OpenAPI.BASE = baseUrl;
-        OpenAPI_OpenAPI.TOKEN = apiToken;
-        // github.context.
-        const apps = await ApplicationService.getApplications({ expand: false });
-        core.setOutput('status', 'Success');
-        log(`apps count: ${apps.length}`);
-    }
-    catch (error) {
-        if (error instanceof Error) {
-            core.setFailed(error.message);
-        }
-    }
-}
-
-;// CONCATENATED MODULE: ./src/index.ts
-
-run();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const main_1 = __nccwpck_require__(399);
+(0, main_1.run)();
 
 })();
 
