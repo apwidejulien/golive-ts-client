@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "private": true,
+  "type": "module",
   "scripts": {
     "test": "vitest",
     "openapi-ts": "openapi-ts",
@@ -20,11 +21,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@eslint/js": "^9.5.0",
     "@hey-api/openapi-ts": "0.48.0",
     "@types/node": "20.14.9",
     "@vercel/ncc": "0.38.1",
+    "dotenv": "^16.4.5",
     "ts-node": "10.9.2",
     "typescript": "5.5.2",
+    "typescript-eslint": "^7.14.1",
     "vitest": "1.6.0"
   },
   "dependencies": {

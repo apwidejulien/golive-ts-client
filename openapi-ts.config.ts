@@ -3,11 +3,19 @@ import { defineConfig } from '@hey-api/openapi-ts'
 export default defineConfig({
   input: 'src/swagger.json',
   output: 'src/client',
-  enums: 'typescript',
+  types: {
+    enums: 'typescript',
+  },
+  schemas: {
+    export: true,
+    type: 'json'
+  },
+  services: {
+    asClass: true,
+    export: true,
+    response: 'body',
+    operationId: true
+  },
   exportCore: true,
-  exportModels: true,
-  exportServices: true,
-  client: 'fetch',
-  serviceResponse: 'body',
-  operationId: true
+  client: 'fetch'
 })
