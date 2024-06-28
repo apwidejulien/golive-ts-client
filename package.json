@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "description": "",
   "private": true,
+  "type": "module",
   "scripts": {
     "test": "vitest",
     "openapi-ts": "openapi-ts",
-    "package-github": "npx ncc build src/index.ts -o dist --source-map",
+    "package-github": "npx ncc build src/index.ts -o dist",
     "lint": "npx eslint .",
     "format:check": "prettier --check .",
     "format:write": "prettier --write ."
