@@ -1,66 +1,96 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
-// https://www.typescriptlang.org/docs/handbook/modules/appendices/esm-cjs-interop.html
 import { ApplicationService, OpenAPI } from './client'
+import { GitHub } from '@actions/github/lib/utils'
+import { execSync } from 'node:child_process'
 
 function log(message: string) {
   core.info(message)
 }
 
+type Input = {
+  goliveToken?: string
+  goliveUrl?: string
+  goliveUsername?: string
+  golivePassword?: string
+  githubToken: string
+}
+
+function parseInput(): Input {
+  return {
+    goliveToken: core.getInput('goliveToken', { trimWhitespace: true }),
+    goliveUrl: core.getInput('goliveUrl', { trimWhitespace: true }),
+    goliveUsername: core.getInput('goliveUsername', { trimWhitespace: true }),
+    golivePassword: core.getInput('golivePassword', { trimWhitespace: true }),
+    githubToken: core.getInput('githubToken', { required: true, trimWhitespace: true })
+  }
+}
+
+function execGitLog() {
+  const logs = execSync(`git log --format="%s %b"`).toString()
+  log(`logs found: ${logs}`)
+}
+
+/**
+ * could be:
+ * if pr: refs/pull/<pr_number>/merge
+ * if branch: refs/heads/<branch_name>
+ * if tag: refs/tags/<tag_name>
+ *
+ * TODO should we change the way we get the content based on PR/tag/branch ?
+ */
+function getCurrentBranch() {
+  return github.context.ref
+}
+
+class GithubClient {
+  private readonly octokit: InstanceType<typeof GitHub>
+
+  constructor(input: Input) {
+    this.octokit = github.getOctokit(input.githubToken)
+  }
+
+  get client() {
+    return this.octokit.rest
+  }
+
+  async getFromCommitId() {
+    const branch = getCurrentBranch()
+    // TODO paginated, should load all
+    const runs = await this.client.actions.listWorkflowRuns({
+      branch,
+      ...github.context.repo,
+      workflow_id: github.context.workflow
+    })
+    const lastSuccessfulRunId = github.context.runId
+  }
+}
+
+function setupGolive({ goliveUrl, goliveToken, goliveUsername, golivePassword }: Input) {
+  OpenAPI.BASE = goliveUrl || 'https://golive.apwide.net/api'
+  if (goliveToken?.trim().length || 0 > 0) {
+    OpenAPI.TOKEN = goliveToken
+  } else {
+    OpenAPI.USERNAME = goliveUsername
+    OpenAPI.PASSWORD = golivePassword
+  }
+}
+
 export async function run() {
   try {
-    // const GoliveOctokit = Octokit.plugin(restEndpointMethods)
-    // const octokit = new GoliveOctokit()
-    const apiToken = core.getInput('apiToken')
-    const baseUrl = core.getInput('baseUrl')
-    const githubToken = core.getInput('githubToken')
-    // https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
-    // https://github.com/actions/toolkit
-    // https://github.com/octokit/plugin-throttling.js/issues/127
-    // https://gist.github.com/slavafomin/cd7a54035eff5dc1c7c2eff096b23b6b
-    // https://github.com/actions/toolkit/issues/1555
-    // https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
-    // https://www.typescriptlang.org/docs/handbook/modules/reference.html#packagejson-exports
-    // https://docs.github.com/en/actions/security-guides/automatic-token-authentication
-    // https://github.com/octokit/auth-action.js/?tab=readme-ov-file
-    // https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow
-    //core.getInput("github")
-    const token = core.getInput('GITHUB_TOKEN')
+    const input = parseInput()
+    setupGolive(input)
+    const octokit = github.getOctokit(input.githubToken)
     const context = github.context
-
     log(`
-            token: ${token}
-            githubToken: ${githubToken}
             workflow: ${github.context.workflow}
             repo: ${github.context.repo.repo}
             runId: ${github.context.runId}
         `)
 
-    // const MyOctokit = Octokit.plugin<Octokit & Constructor<Api>>(restEndpointMethods);
-    // const m = new MyOctokit({})
-    // const octokit = github.getOctokit<Octokit & Api>(githubToken, undefined, restEndpointMethods)
-    const octokit = github.getOctokit(githubToken)
-    // const api: Api = github.getOctokit<Api>(githubToken, undefined, plugin.restEndpointMethods)
-    const workflows = await octokit.rest.actions.listRepoWorkflows({
-      ...context.repo
-    })
-    const workflow = workflows.data.workflows.find((workflow) => workflow.name === context.workflow)!
-    log(`workflows: ${JSON.stringify(workflows.data.workflows)}`)
-    log(`found workflow: ${JSON.stringify(workflow)}`)
+    log('executing git log on machine')
+    execGitLog()
 
-    octokit.rest.actions.listWorkflowRuns({
-      ...context.repo,
-      workflow_id: workflow!.id
-    })
-    // log(`runs count: ${response.data}`)
-    /*
-        const response: GetWorkflowRunsResponse = await octokit.request('GET /repos/{owner}/{repo}/actions/runs', {
-            ...context
-        })
-        */
-    OpenAPI.BASE = baseUrl
-    OpenAPI.TOKEN = apiToken
-    // github.context.
     const apps = await ApplicationService.getApplications({ expand: false })
     core.setOutput('status', 'Success')
     log(`apps count: ${apps.length}`)

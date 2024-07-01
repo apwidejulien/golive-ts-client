@@ -1,13 +1,22 @@
 name: 'Golive Send Environment Info'
 description: 'Send Environment Information to Golive'
 inputs:
-  apiToken:
+  goliveToken:
+    required: false
     description: 'Golive API Token'
-    required: true
-  baseUrl:
+  goliveUrl:
     description: 'Api Base Url'
     required: false
     default: 'https://golive.apwide.net/api'
+  goliveUsername:
+    required: false
+    description: 'Golive API Username (Golive Server)'
+  golivePassword:
+    required: false
+    description: 'Golive API Username (Golive Server)'
+  githubToken:
+    required: true
+    description: 'Github token ({{secrets.GITHUB_TOKEN}})'
 outputs:
   status:
     description: 'Status of the action'
