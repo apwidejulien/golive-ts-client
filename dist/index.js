@@ -30929,8 +30929,226 @@ var __webpack_exports__ = {};
 
 // EXTERNAL MODULE: ./node_modules/@actions/core/lib/core.js
 var core = __nccwpck_require__(2186);
+;// CONCATENATED MODULE: ./src/input.ts
+
+function parseAttributes(attributes) {
+    try {
+        return attributes ? JSON.parse(attributes) : undefined;
+    }
+    catch (e) {
+        throw new Error('Could not parse attributes: ' + e);
+    }
+}
+function parseIssueKeys(issueKeys) {
+    if (!issueKeys) {
+        return undefined;
+    }
+    return issueKeys.replace(/\s/g, '').split(',');
+}
+function parseNumber(input) {
+    if (input) {
+        const value = parseInt(input);
+        if (Number.isNaN(value)) {
+            throw new Error(`cannot parse number value ${input}`);
+        }
+        return value;
+    }
+    return undefined;
+}
+function fixDate(date) {
+    // azure-pipelines-task-lib seems to automatically transform string with a ISO-8601 date format
+    // from 2023-01-24T12:00:00Z to 01/24/2023 12:00:00
+    // so we do the reverse
+    const matches = (date || '').match(/(\d{2})\/(\d{2})\/(\d{4})\s{1}(\d{2}):(\d{2}):(\d{2})/);
+    if (!matches?.length) {
+        return date;
+    }
+    const M = matches[1];
+    const d = matches[2];
+    const y = matches[3];
+    const H = matches[4];
+    const m = matches[5];
+    const s = matches[6];
+    return `${y}-${M}-${d}T${H}:${m}:${s}Z`;
+}
+function getNumber(key) {
+    return parseNumber((0,core.getInput)(key));
+}
+function getBoolean(key, defaultValue) {
+    const input = (0,core.getInput)(key);
+    return input ? input.toLocaleLowerCase().trim() === 'true' : defaultValue;
+}
+function getAttributes(key) {
+    return parseAttributes((0,core.getInput)(key));
+}
+function parseInput() {
+    return {
+        goliveToken: (0,core.getInput)('goliveToken', { trimWhitespace: true }),
+        goliveUrl: (0,core.getInput)('goliveUrl', { trimWhitespace: true }),
+        goliveUsername: (0,core.getInput)('goliveUsername', { trimWhitespace: true }),
+        golivePassword: (0,core.getInput)('golivePassword', { trimWhitespace: true }),
+        githubToken: (0,core.getInput)('githubToken', { required: true, trimWhitespace: true }),
+        targetEnvironmentId: getNumber('targetEnvironmentId'),
+        targetEnvironmentName: (0,core.getInput)('targetEnvironmentName'),
+        targetEnvironmentAutoCreate: getBoolean('targetEnvironmentAutoCreate'),
+        targetCategoryName: (0,core.getInput)('targetCategoryName'),
+        targetCategoryId: getNumber('targetCategoryId'),
+        targetCategoryAutoCreate: getBoolean('targetCategoryAutoCreate'),
+        targetApplicationId: getNumber('targetApplicationId'),
+        targetApplicationName: (0,core.getInput)('targetApplicationName'),
+        targetApplicationAutoCreate: getBoolean('targetApplicationAutoCreate'),
+        environmentStatusId: getNumber('environmentStatusId'),
+        environmentStatusName: (0,core.getInput)('environmentStatusName'),
+        environmentUrl: (0,core.getInput)('environmentUrl'),
+        environmentAttributes: getAttributes('environmentAttributes'),
+        deploymentVersionName: (0,core.getInput)('deploymentVersionName'),
+        deploymentDeployedDate: (0,core.getInput)('deploymentDeployedDate'),
+        deploymentBuildNumber: (0,core.getInput)('deploymentBuildNumber'),
+        deploymentDescription: (0,core.getInput)('deploymentDescription'),
+        deploymentIssueKeys: parseIssueKeys((0,core.getInput)('deploymentIssueKeys')),
+        deploymentIssueKeysFromCommitHistory: getBoolean('deploymentIssueKeysFromCommitHistory', false),
+        deploymentIssuesFromJql: (0,core.getInput)('deploymentIssuesFromJql'),
+        deploymentAttributes: getAttributes('deploymentAttributes'),
+        deploymentSendJiraNotification: getBoolean('deploymentSendJiraNotification', false),
+        deploymentAddDoneIssuesOfJiraVersion: getBoolean('deploymentAddDoneIssuesOfJiraVersion', false),
+        deploymentNoFixVersionUpdate: getBoolean('deploymentNoFixVersionUpdate', false)
+    };
+}
+
 // EXTERNAL MODULE: ./node_modules/@actions/github/lib/github.js
-var lib_github = __nccwpck_require__(5438);
+var github = __nccwpck_require__(5438);
+;// CONCATENATED MODULE: ./src/GithubClient.ts
+
+
+/**
+ * could be:
+ * if pr: refs/pull/<pr_number>/merge
+ * if branch: refs/heads/<branch_name>
+ * if tag: refs/tags/<tag_name>
+ *
+ * TODO should we change the way we get the content based on PR/tag/branch ?
+ */
+function getCurrentBranch() {
+    return github.context.ref.replaceAll('/refs/head/', '');
+}
+const MAX_RUNS_PER_PAGE = 100;
+class GithubClient {
+    octokit;
+    constructor(input) {
+        this.octokit = (0,github.getOctokit)(input.githubToken);
+    }
+    get client() {
+        return this.octokit.rest;
+    }
+    async getAllRunsSinceLastSuccess() {
+        const branch = getCurrentBranch();
+        const scope = [];
+        let page = 1;
+        let foundBoundary = false;
+        let lastLoadedItems = MAX_RUNS_PER_PAGE;
+        let itemsTotal = MAX_RUNS_PER_PAGE + 1;
+        const params = {
+            branch,
+            ...github.context.repo,
+            workflow_id: github.context.workflow
+        };
+        (0,core.debug)(`load last runs since last successful for params: ${JSON.stringify(params)}`);
+        while (!foundBoundary && lastLoadedItems === MAX_RUNS_PER_PAGE && page * MAX_RUNS_PER_PAGE < itemsTotal) {
+            const runs = await this.client.actions.listWorkflowRuns({
+                ...params,
+                page,
+                per_page: MAX_RUNS_PER_PAGE
+            });
+            page++;
+            lastLoadedItems = runs.data.workflow_runs.length;
+            itemsTotal = runs.data.total_count;
+            for (const run of runs.data.workflow_runs) {
+                if (run.conclusion !== 'success') {
+                    scope.push({
+                        id: run.id,
+                        title: run.display_title,
+                        commitId: run.head_commit?.id,
+                        commitMessage: run.head_commit?.message,
+                        // run.head_commit?.tree_id ??
+                    });
+                }
+                else {
+                    foundBoundary = true;
+                    break;
+                }
+            }
+        }
+        return scope;
+    }
+}
+
+;// CONCATENATED MODULE: ./src/utils.ts
+const PUNCT = '!:;<=>?,@#%&*+_\\-./^|~{}[\\]\'"';
+const SEPARATOR = '[\\s' + PUNCT + ']';
+const KEY_PREFIX_REGEX = '(?:(?<=' + SEPARATOR + ')|^)';
+const KEY_BODY_REGEX = '([A-Z][A-Z\\d_]{1,255}-\\d{1,100})';
+const KEY_POSTFIX_REGEX = '(?:(?=' + SEPARATOR + ')|$)';
+const ISSUE_KEY_REGEX = KEY_PREFIX_REGEX + KEY_BODY_REGEX + KEY_POSTFIX_REGEX;
+// const ISSUE_KEY_MAX_LIMIT = 100;
+function extractIssueKeys(text) {
+    return text.match(new RegExp(ISSUE_KEY_REGEX, 'g')) || [];
+}
+function unique(values) {
+    return Array.from(new Set(values));
+}
+
+;// CONCATENATED MODULE: external "node:child_process"
+const external_node_child_process_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:child_process");
+;// CONCATENATED MODULE: ./src/scope.ts
+
+
+
+
+function extractIssueKeysFromCli(runs) {
+    const fromCommitId = github.context.sha;
+    const oldestRun = runs.length > 0 ? runs[runs.length - 1] : null;
+    const toCommitId = oldestRun?.commitId || fromCommitId;
+    const issueKeys = fromCli(fromCommitId, toCommitId);
+    (0,core.debug)(`found issues '${issueKeys}' with CLI in commits ${fromCommitId}..${toCommitId}`);
+    return issueKeys;
+}
+function fromCli(fromCommitId, toCommitId) {
+    try {
+        (0,core.info)('Extract commits from git CLI');
+        let issueKeys = [];
+        if (fromCommitId == toCommitId) {
+            (0,core.debug)('fromCommit equals toCommit, use different strategy');
+            const commitCount = Number((0,external_node_child_process_namespaceObject.execSync)('git rev-list HEAD --count').toString());
+            if (commitCount == 1) {
+                (0,core.debug)('Only 1 commits, search for entire git log');
+                const logs = (0,external_node_child_process_namespaceObject.execSync)(`git log --format="%s %b"`).toString();
+                issueKeys = extractIssueKeys(logs);
+            }
+            else {
+                (0,core.debug)(`Search in git log with HEAD~1..HEAD`);
+                const logs = (0,external_node_child_process_namespaceObject.execSync)(`git log "HEAD~1..HEAD" --format="%s %b"`).toString();
+                issueKeys = extractIssueKeys(logs);
+            }
+        }
+        else {
+            const logs = (0,external_node_child_process_namespaceObject.execSync)(`git log "${fromCommitId}..HEAD" --format="%s %b"`).toString();
+            issueKeys = extractIssueKeys(logs);
+        }
+        (0,core.info)(`Issue keys found in commits from CLI: ${issueKeys}`);
+        return issueKeys;
+    }
+    catch (error) {
+        (0,core.info)('Not able to parse git log (are you in shallow checkout ?)');
+        (0,core.debug)(`Error when parsing git repository was: ${error}`);
+        return [];
+    }
+}
+function extractIssueKeysFromRuns(runs) {
+    const issueKeys = extractIssueKeys(runs.map(run => `${run.title} ${run.commitMessage}`).join(' '));
+    (0,core.debug)(`found issues '${issueKeys}' in runs detail`);
+    return issueKeys;
+}
+
 ;// CONCATENATED MODULE: ./src/client/core/ApiError.ts
 class ApiError extends Error {
     url;
@@ -32661,7 +32879,7 @@ class ApplicationService {
      * @throws ApiError
      */
     static postApplication(data) {
-        return request(OpenAPI_OpenAPI, {
+        return __request(OpenAPI, {
             method: 'POST',
             url: '/application',
             body: data.requestBody,
@@ -32679,7 +32897,7 @@ class ApplicationService {
      * @throws ApiError
      */
     static getApplicationById(data) {
-        return request(OpenAPI_OpenAPI, {
+        return __request(OpenAPI, {
             method: 'GET',
             url: '/application/{id}',
             path: {
@@ -32704,7 +32922,7 @@ class ApplicationService {
      * @throws ApiError
      */
     static putApplicationById(data) {
-        return request(OpenAPI_OpenAPI, {
+        return __request(OpenAPI, {
             method: 'PUT',
             url: '/application/{id}',
             path: {
@@ -32726,7 +32944,7 @@ class ApplicationService {
      * @throws ApiError
      */
     static deleteApplicationById(data) {
-        return request(OpenAPI_OpenAPI, {
+        return __request(OpenAPI, {
             method: 'DELETE',
             url: '/application/{id}',
             path: {
@@ -32745,7 +32963,7 @@ class ApplicationService {
      * @throws ApiError
      */
     static getApplications(data = {}) {
-        return request(OpenAPI_OpenAPI, {
+        return __request(OpenAPI, {
             method: 'GET',
             url: '/applications',
             query: {
@@ -33234,7 +33452,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static getEnvironment(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'GET',
             url: '/environment',
             query: {
@@ -33261,7 +33479,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static postEnvironment(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'POST',
             url: '/environment',
             body: data.requestBody,
@@ -33276,7 +33494,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static postEnvironmentClone(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'POST',
             url: '/environment/clone',
             body: data.requestBody,
@@ -33291,7 +33509,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static getEnvironmentById(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'GET',
             url: '/environment/{id}',
             path: {
@@ -33322,7 +33540,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static putEnvironmentById(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'PUT',
             url: '/environment/{id}',
             path: {
@@ -33340,7 +33558,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static deleteEnvironmentById(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'DELETE',
             url: '/environment/{id}',
             path: {
@@ -33356,7 +33574,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static postEnvironmentInformation(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'POST',
             url: '/environment/information',
             body: data.requestBody,
@@ -33396,7 +33614,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static getEnvironmentsSearch(data = {}) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'GET',
             url: '/environments/search',
             query: {
@@ -33430,7 +33648,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static postEnvironmentsSearch(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'POST',
             url: '/environments/search',
             body: data.requestBody,
@@ -33470,7 +33688,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static getEnvironmentsSearchPaginated(data = {}) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'GET',
             url: '/environments/search/paginated',
             query: {
@@ -33507,7 +33725,7 @@ class EnvironmentService {
      * @throws ApiError
      */
     static postEnvironmentsSearchPaginated(data) {
-        return __request(OpenAPI, {
+        return request(OpenAPI_OpenAPI, {
             method: 'POST',
             url: '/environments/search/paginated',
             body: data.requestBody,
@@ -33652,59 +33870,8 @@ var DefaultBoolean;
 
 
 
-;// CONCATENATED MODULE: external "node:child_process"
-const external_node_child_process_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:child_process");
-;// CONCATENATED MODULE: ./src/main.ts
+;// CONCATENATED MODULE: ./src/GoliveClient.ts
 
-
-
-
-function log(message) {
-    core.info(message);
-}
-function parseInput() {
-    return {
-        goliveToken: core.getInput('goliveToken', { trimWhitespace: true }),
-        goliveUrl: core.getInput('goliveUrl', { trimWhitespace: true }),
-        goliveUsername: core.getInput('goliveUsername', { trimWhitespace: true }),
-        golivePassword: core.getInput('golivePassword', { trimWhitespace: true }),
-        githubToken: core.getInput('githubToken', { required: true, trimWhitespace: true })
-    };
-}
-function execGitLog() {
-    const logs = (0,external_node_child_process_namespaceObject.execSync)(`git log --format="%s %b"`).toString();
-    log(`logs found: ${logs}`);
-}
-/**
- * could be:
- * if pr: refs/pull/<pr_number>/merge
- * if branch: refs/heads/<branch_name>
- * if tag: refs/tags/<tag_name>
- *
- * TODO should we change the way we get the content based on PR/tag/branch ?
- */
-function getCurrentBranch() {
-    return github.context.ref;
-}
-class GithubClient {
-    octokit;
-    constructor(input) {
-        this.octokit = github.getOctokit(input.githubToken);
-    }
-    get client() {
-        return this.octokit.rest;
-    }
-    async getFromCommitId() {
-        const branch = getCurrentBranch();
-        // TODO paginated, should load all
-        const runs = await this.client.actions.listWorkflowRuns({
-            branch,
-            ...github.context.repo,
-            workflow_id: github.context.workflow
-        });
-        const lastSuccessfulRunId = github.context.runId;
-    }
-}
 function setupGolive({ goliveUrl, goliveToken, goliveUsername, golivePassword }) {
     OpenAPI_OpenAPI.BASE = goliveUrl || 'https://golive.apwide.net/api';
     if (goliveToken?.trim().length || 0 > 0) {
@@ -33715,33 +33882,113 @@ function setupGolive({ goliveUrl, goliveToken, goliveUsername, golivePassword })
         OpenAPI_OpenAPI.PASSWORD = golivePassword;
     }
 }
-async function run() {
+class GoliveClient {
+    constructor(input) {
+        setupGolive(input);
+    }
+    async sendEnvironmentInfo(requestBody) {
+        return EnvironmentService.postEnvironmentInformation({ requestBody });
+    }
+}
+
+;// CONCATENATED MODULE: ./src/sendEnvironmentInfo.ts
+
+
+
+
+
+
+async function findIssueKeys(input) {
+    (0,core.debug)('looking for issue keys');
+    const githubClient = new GithubClient(input);
+    const runs = await githubClient.getAllRunsSinceLastSuccess();
+    (0,core.debug)(`found ${runs.length} runs to process`);
+    return unique([
+        ...extractIssueKeysFromCli(runs),
+        ...extractIssueKeysFromRuns(runs)
+    ]);
+}
+async function toDeployment(input) {
+    const issueKeys = await findIssueKeys(input);
+    (0,core.info)(`found issues '${issueKeys}'`);
+    if (!input.deploymentVersionName && !input.deploymentAttributes && !input.deploymentBuildNumber && !input.deploymentDescription && !issueKeys.length) {
+        return undefined;
+    }
+    return {
+        versionName: input.deploymentVersionName,
+        attributes: input.deploymentAttributes,
+        buildNumber: input.deploymentBuildNumber,
+        deployedDate: input.deploymentDeployedDate,
+        description: input.deploymentDescription,
+        issues: {
+            issueKeys: issueKeys.length ? issueKeys : undefined,
+            jql: input.deploymentIssuesFromJql,
+            noFixVersionUpdate: input.deploymentNoFixVersionUpdate,
+            addDoneIssuesFixedInVersion: input.deploymentAddDoneIssuesOfJiraVersion,
+            sendJiraNotification: input.deploymentSendJiraNotification
+        }
+    };
+}
+function toStatus({ environmentStatusId, environmentStatusName }) {
+    if (!environmentStatusId && !environmentStatusName) {
+        return undefined;
+    }
+    return {
+        id: environmentStatusId,
+        name: environmentStatusName
+    };
+}
+function toEnvironment({ environmentUrl, environmentAttributes }) {
+    if (!environmentUrl && !Object.keys(environmentAttributes || {}).length) {
+        return {};
+    }
+    return {
+        url: environmentUrl,
+        attributes: environmentAttributes
+    };
+}
+async function sendEnvironmentInfo() {
     try {
         const input = parseInput();
-        setupGolive(input);
-        const octokit = lib_github.getOctokit(input.githubToken);
-        const context = lib_github.context;
-        log(`
-            workflow: ${lib_github.context.workflow}
-            repo: ${lib_github.context.repo.repo}
-            runId: ${lib_github.context.runId}
-        `);
-        log('executing git log on machine');
-        execGitLog();
-        const apps = await ApplicationService.getApplications({ expand: false });
-        core.setOutput('status', 'Success');
-        log(`apps count: ${apps.length}`);
+        (0,core.debug)(`inputs are: ${JSON.stringify(input)}`);
+        const goliveClient = new GoliveClient(input);
+        const deployment = await toDeployment(input);
+        const status = toStatus(input);
+        const environment = toEnvironment(input);
+        await goliveClient.sendEnvironmentInfo({
+            environmentSelector: {
+                environment: {
+                    id: input.targetEnvironmentId,
+                    name: input.targetEnvironmentName,
+                    autoCreate: input.targetEnvironmentAutoCreate
+                },
+                application: {
+                    id: input.targetApplicationId,
+                    name: input.targetApplicationName,
+                    autoCreate: input.targetApplicationAutoCreate
+                },
+                category: {
+                    id: input.targetCategoryId,
+                    name: input.targetCategoryName,
+                    autoCreate: input.targetCategoryAutoCreate
+                }
+            },
+            environment,
+            status,
+            deployment
+        });
+        (0,core.setOutput)('status', 'Success');
     }
     catch (error) {
         if (error instanceof Error) {
-            core.setFailed(error.message);
+            (0,core.setFailed)(error.message);
         }
     }
 }
 
 ;// CONCATENATED MODULE: ./src/index.ts
 
-run();
+sendEnvironmentInfo();
 
 })();
 

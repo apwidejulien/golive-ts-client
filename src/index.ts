@@ -1,3 +1,3 @@
-import { run } from './main'
+import { sendEnvironmentInfo } from './sendEnvironmentInfo'
 
-run()
+sendEnvironmentInfo()

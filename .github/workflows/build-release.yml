@@ -33,7 +33,7 @@ jobs:
 
       - name: Package
         id: npm-package
-        run: npm run package-github
+        run: npm run build
 
       - name: Upload
         id: upload

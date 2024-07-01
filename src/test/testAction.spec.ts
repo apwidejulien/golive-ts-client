@@ -1,16 +1,16 @@
 import {afterEach, beforeEach, describe, it, MockInstance, vi} from 'vitest'
-import {run} from "../main";
+import {sendEnvironmentInfo} from "../sendEnvironmentInfo";
 import * as core from '@actions/core'
 
 let getInputMock: MockInstance
 
-vi.stubEnv('GITHUB_WORKFLOW', 'Test Action')
+vi.stubEnv('GITHUB_WORKFLOW', 'Build and Release')
 vi.stubEnv('GITHUB_JOB', '')
-vi.stubEnv('GITHUB_RUN_NUMBER', '')
-vi.stubEnv('GITHUB_RUN_ID', '')
-vi.stubEnv('GITHUB_REF', '')
-vi.stubEnv('GITHUB_SHA', '')
-vi.stubEnv('GITHUB_REPOSITORY', 'apwidejulien/golive-ts-client')
+vi.stubEnv('GITHUB_RUN_NUMBER', '12')
+vi.stubEnv('GITHUB_RUN_ID', '9746284292')
+vi.stubEnv('GITHUB_REF', 'main')
+vi.stubEnv('GITHUB_SHA', '4427c3b70302948c3da23735534ead3c780ecd15')
+vi.stubEnv('GITHUB_REPOSITORY', 'apwidejulien/test-github-actions')
 
 describe('github action', async () => {
   beforeEach(() => {
@@ -23,6 +23,6 @@ describe('github action', async () => {
   })
 
   it('should call github', async () => {
-    await run()
+    await sendEnvironmentInfo()
   })
 })

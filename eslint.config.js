@@ -7,7 +7,8 @@ export default [
     ignores: [
       'dist/',
       'src/client/',
-      'src/test/'
+      'src/test/',
+      'vitest.config.js'
     ]
   },
   {
