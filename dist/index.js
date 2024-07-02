@@ -30978,33 +30978,37 @@ function getBoolean(key, defaultValue) {
 function getAttributes(key) {
     return parseAttributes((0,core.getInput)(key));
 }
+function getString(key, mandatory = false) {
+    const value = (0,core.getInput)(key, { trimWhitespace: true, required: mandatory });
+    return Boolean(value.length) ? value : undefined;
+}
 function parseInput() {
     return {
-        goliveToken: (0,core.getInput)('goliveToken', { trimWhitespace: true }),
-        goliveUrl: (0,core.getInput)('goliveUrl', { trimWhitespace: true }),
-        goliveUsername: (0,core.getInput)('goliveUsername', { trimWhitespace: true }),
-        golivePassword: (0,core.getInput)('golivePassword', { trimWhitespace: true }),
-        githubToken: (0,core.getInput)('githubToken', { required: true, trimWhitespace: true }),
+        goliveToken: getString('goliveToken'),
+        goliveUrl: getString('goliveUrl'),
+        goliveUsername: getString('goliveUsername'),
+        golivePassword: getString('golivePassword'),
+        githubToken: getString('githubToken', true),
         targetEnvironmentId: getNumber('targetEnvironmentId'),
-        targetEnvironmentName: (0,core.getInput)('targetEnvironmentName'),
+        targetEnvironmentName: getString('targetEnvironmentName'),
         targetEnvironmentAutoCreate: getBoolean('targetEnvironmentAutoCreate'),
-        targetCategoryName: (0,core.getInput)('targetCategoryName'),
+        targetCategoryName: getString('targetCategoryName'),
         targetCategoryId: getNumber('targetCategoryId'),
         targetCategoryAutoCreate: getBoolean('targetCategoryAutoCreate'),
         targetApplicationId: getNumber('targetApplicationId'),
-        targetApplicationName: (0,core.getInput)('targetApplicationName'),
+        targetApplicationName: getString('targetApplicationName'),
         targetApplicationAutoCreate: getBoolean('targetApplicationAutoCreate'),
         environmentStatusId: getNumber('environmentStatusId'),
-        environmentStatusName: (0,core.getInput)('environmentStatusName'),
-        environmentUrl: (0,core.getInput)('environmentUrl'),
+        environmentStatusName: getString('environmentStatusName'),
+        environmentUrl: getString('environmentUrl'),
         environmentAttributes: getAttributes('environmentAttributes'),
-        deploymentVersionName: (0,core.getInput)('deploymentVersionName'),
-        deploymentDeployedDate: (0,core.getInput)('deploymentDeployedDate'),
-        deploymentBuildNumber: (0,core.getInput)('deploymentBuildNumber'),
-        deploymentDescription: (0,core.getInput)('deploymentDescription'),
-        deploymentIssueKeys: parseIssueKeys((0,core.getInput)('deploymentIssueKeys')),
+        deploymentVersionName: getString('deploymentVersionName'),
+        deploymentDeployedDate: getString('deploymentDeployedDate'),
+        deploymentBuildNumber: getString('deploymentBuildNumber'),
+        deploymentDescription: getString('deploymentDescription'),
+        deploymentIssueKeys: parseIssueKeys(getString('deploymentIssueKeys')),
         deploymentIssueKeysFromCommitHistory: getBoolean('deploymentIssueKeysFromCommitHistory', false),
-        deploymentIssuesFromJql: (0,core.getInput)('deploymentIssuesFromJql'),
+        deploymentIssuesFromJql: getString('deploymentIssuesFromJql'),
         deploymentAttributes: getAttributes('deploymentAttributes'),
         deploymentSendJiraNotification: getBoolean('deploymentSendJiraNotification', false),
         deploymentAddDoneIssuesOfJiraVersion: getBoolean('deploymentAddDoneIssuesOfJiraVersion', false),
@@ -31018,7 +31022,7 @@ var github = __nccwpck_require__(5438);
 
 
 function getCurrentBranch() {
-    return github.context.ref.replaceAll('/refs/head/', '');
+    return github.context.ref.replaceAll('/refs/heads/', '');
 }
 const MAX_RUNS_PER_PAGE = 100;
 class GithubClient {
@@ -31036,10 +31040,15 @@ class GithubClient {
         let foundBoundary = false;
         let lastLoadedItems = MAX_RUNS_PER_PAGE;
         let itemsTotal = MAX_RUNS_PER_PAGE + 1;
+        (0,core.debug)(`loading current run detail for run id ${github.context.runId}`);
+        const currentRun = await this.client.actions.getWorkflowRun({
+            ...github.context.repo,
+            run_id: github.context.runId
+        });
         const params = {
             branch,
             ...github.context.repo,
-            workflow_id: github.context.workflow
+            workflow_id: currentRun.data.workflow_id
         };
         (0,core.debug)(`load last runs since last successful for params: ${JSON.stringify(params)}`);
         while (!foundBoundary && lastLoadedItems === MAX_RUNS_PER_PAGE && page * MAX_RUNS_PER_PAGE < itemsTotal) {
@@ -33410,6 +33419,7 @@ var DefaultBoolean;
 
 ;// CONCATENATED MODULE: ./src/GoliveClient.ts
 
+
 function setupGolive({ goliveUrl, goliveToken, goliveUsername, golivePassword }) {
     OpenAPI_OpenAPI.BASE = goliveUrl || 'https://golive.apwide.net/api';
     if (goliveToken?.trim().length || 0 > 0) {
@@ -33420,12 +33430,50 @@ function setupGolive({ goliveUrl, goliveToken, goliveUsername, golivePassword })
         OpenAPI_OpenAPI.PASSWORD = golivePassword;
     }
 }
+function marshal(body) {
+    try {
+        return JSON.stringify(body);
+    }
+    catch (e) {
+        return `${body}`;
+    }
+}
+function removeUndefined(payload) {
+    Object.keys(payload).forEach((key) => {
+        payload[key] === undefined && delete payload[key];
+        if (typeof payload[key] === 'object') {
+            removeUndefined(payload[key]);
+        }
+    });
+    return payload;
+}
 class GoliveClient {
     constructor(input) {
         setupGolive(input);
     }
-    async sendEnvironmentInfo(requestBody) {
-        return EnvironmentService.postEnvironmentInformation({ requestBody });
+    async sendEnvironmentInfo(info) {
+        const requestBody = removeUndefined(info);
+        (0,core.debug)(`sending environment info: ${JSON.stringify(requestBody)}`);
+        try {
+            return await EnvironmentService.postEnvironmentInformation({ requestBody });
+        }
+        catch (e) {
+            if (e instanceof ApiError) {
+                (0,core.error)(`
+        Error on sending environment information:
+        - url: ${e.url}
+        - request body: ${marshal(requestBody)}}
+        - message: ${e.message}
+        - status: ${e.status}
+        - statusText: ${e.statusText}
+        - response body: ${marshal(e.body)}
+        `);
+            }
+            else {
+                (0,core.error)('non-ApiError thrown');
+            }
+            throw e;
+        }
     }
 }
 

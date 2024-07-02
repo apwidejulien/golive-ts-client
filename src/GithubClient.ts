@@ -19,7 +19,7 @@ export type RunOccurrence = {
  * TODO should we change the way we get the content based on PR/tag/branch ?
  */
 function getCurrentBranch() {
-  return context.ref.replaceAll('/refs/head/', '')
+  return context.ref.replaceAll('/refs/heads/', '')
 }
 
 const MAX_RUNS_PER_PAGE = 100
@@ -31,7 +31,7 @@ export class GithubClient {
     this.octokit = getOctokit(input.githubToken)
   }
 
-  get client() {
+  private get client() {
     return this.octokit.rest
   }
 
@@ -43,10 +43,16 @@ export class GithubClient {
     let lastLoadedItems = MAX_RUNS_PER_PAGE
     let itemsTotal = MAX_RUNS_PER_PAGE + 1
 
+    debug(`loading current run detail for run id ${context.runId}`)
+    const currentRun = await this.client.actions.getWorkflowRun({
+      ...context.repo,
+      run_id: context.runId
+    })
+
     const params = {
       branch,
       ...context.repo,
-      workflow_id: context.workflow
+      workflow_id: currentRun.data.workflow_id
     }
 
     debug(`load last runs since last successful for params: ${JSON.stringify(params)}`)

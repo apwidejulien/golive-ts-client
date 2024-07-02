@@ -89,7 +89,6 @@ inputs:
       Set the JQL query used to retrieve and add Jira tickets to the current deployment. 
       Ex: project = ECP AND type in (Story, Bug) AND resolution in (Fixed).
       More about JQL [here](https://www.atlassian.com/software/jira/guides/jql)
-    default: 'false'
   deploymentAddDoneIssuesOfJiraVersion:
     required: false
     description: 'Add all "Done" issues fixed in the deployed Jira version to the current deployment'

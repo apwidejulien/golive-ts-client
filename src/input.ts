@@ -1,4 +1,4 @@
-import { getInput, getBooleanInput } from '@actions/core'
+import { getInput } from '@actions/core'
 
 export type Input = {
   goliveToken?: string
@@ -92,34 +92,39 @@ function getAttributes(key: string): Record<string, string> | undefined {
   return parseAttributes(getInput(key))
 }
 
+function getString(key: string, mandatory = false): string | undefined {
+  const value = getInput(key, { trimWhitespace: true, required: mandatory })
+  return Boolean(value.length) ? value : undefined
+}
+
 export function parseInput(): Input {
   return {
-    goliveToken: getInput('goliveToken', { trimWhitespace: true }),
-    goliveUrl: getInput('goliveUrl', { trimWhitespace: true }),
-    goliveUsername: getInput('goliveUsername', { trimWhitespace: true }),
-    golivePassword: getInput('golivePassword', { trimWhitespace: true }),
-    githubToken: getInput('githubToken', { required: true, trimWhitespace: true }),
+    goliveToken: getString('goliveToken'),
+    goliveUrl: getString('goliveUrl'),
+    goliveUsername: getString('goliveUsername'),
+    golivePassword: getString('golivePassword'),
+    githubToken: getString('githubToken', true)!,
 
     targetEnvironmentId: getNumber('targetEnvironmentId'),
-    targetEnvironmentName: getInput('targetEnvironmentName'),
+    targetEnvironmentName: getString('targetEnvironmentName'),
     targetEnvironmentAutoCreate: getBoolean('targetEnvironmentAutoCreate'),
-    targetCategoryName: getInput('targetCategoryName'),
+    targetCategoryName: getString('targetCategoryName'),
     targetCategoryId: getNumber('targetCategoryId'),
     targetCategoryAutoCreate: getBoolean('targetCategoryAutoCreate'),
     targetApplicationId: getNumber('targetApplicationId'),
-    targetApplicationName: getInput('targetApplicationName'),
+    targetApplicationName: getString('targetApplicationName'),
     targetApplicationAutoCreate: getBoolean('targetApplicationAutoCreate'),
     environmentStatusId: getNumber('environmentStatusId'),
-    environmentStatusName: getInput('environmentStatusName'),
-    environmentUrl: getInput('environmentUrl'),
+    environmentStatusName: getString('environmentStatusName'),
+    environmentUrl: getString('environmentUrl'),
     environmentAttributes: getAttributes('environmentAttributes'),
-    deploymentVersionName: getInput('deploymentVersionName'),
-    deploymentDeployedDate: getInput('deploymentDeployedDate'),
-    deploymentBuildNumber: getInput('deploymentBuildNumber'),
-    deploymentDescription: getInput('deploymentDescription'),
-    deploymentIssueKeys: parseIssueKeys(getInput('deploymentIssueKeys')),
+    deploymentVersionName: getString('deploymentVersionName'),
+    deploymentDeployedDate: getString('deploymentDeployedDate'),
+    deploymentBuildNumber: getString('deploymentBuildNumber'),
+    deploymentDescription: getString('deploymentDescription'),
+    deploymentIssueKeys: parseIssueKeys(getString('deploymentIssueKeys')),
     deploymentIssueKeysFromCommitHistory: getBoolean('deploymentIssueKeysFromCommitHistory', false)!,
-    deploymentIssuesFromJql: getInput('deploymentIssuesFromJql'),
+    deploymentIssuesFromJql: getString('deploymentIssuesFromJql'),
     deploymentAttributes: getAttributes('deploymentAttributes'),
     deploymentSendJiraNotification: getBoolean('deploymentSendJiraNotification', false)!,
     deploymentAddDoneIssuesOfJiraVersion: getBoolean('deploymentAddDoneIssuesOfJiraVersion', false)!,
